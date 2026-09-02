@@ -1,0 +1,51 @@
+# Takip edilecek analistler ve kaynaklari.
+# Bu dosyayi "analysts.yaml" olarak kopyalayin ve kendi listenizle doldurun.
+# "finorch sync-config" ile DB'ye yazilir.
+#
+# Her analistin bir "type" (profil tipi) vardir - icerik FARKLI islenir:
+#   - macro     : anlati/makro. Nedensel kurallar ("savas cikarsa altin yukselir")
+#                 ve gelecek projeksiyonlari cikarilir, hafizaya kaydedilir.
+#   - technical : teknik analiz. Kendi icinde islem kurulumlari cikarilir
+#                 (orn. FVG + MSB varsa, entry / stop / 2RR TP). Analistler arasi
+#                 konsensus UYGULANMAZ; her hesap kendi basina degerlendirilir.
+#   - mixed     : her iki cikarim da yapilir.
+#
+# Kaynak turleri (her analistin birden fazla kaynagi olabilir):
+#   - youtube : kanal url'si veya @handle
+#   - x       : X/Twitter kullanici adi (@ olmadan)
+#   - web     : RSS/Atom feed url'si veya video iceren sayfa url'si
+
+analysts:
+  # --- Makro / anlati hesabi ornegi ---
+  - name: "Makro Analist"
+    type: macro
+    language: "tr"
+    focus: "Makro, jeopolitik, dolar/altin/emtia; nedensel iliskiler ve projeksiyonlar"
+    sources:
+      - type: youtube
+        ref: "https://www.youtube.com/@makro_kanal"
+      - type: x
+        ref: "makro_kullanici"
+
+  # --- Teknik analiz hesabi ornegi ---
+  - name: "Teknik Analist"
+    type: technical
+    language: "tr"
+    focus: "SMC/ICT; FVG, MSB, order block, likidite; entry/SL/TP ve RR"
+    sources:
+      - type: youtube
+        ref: "https://www.youtube.com/@teknik_kanal"
+      - type: web
+        ref: "https://ornek-site.com/rss.xml"
+
+# Uyari kurallari (Faz 1 - icerik tabanli). condition-engine bunlari degerlendirir.
+alert_rules:
+  # Bir analist yeni bir hedef fiyat / net tahmin acikladiginda
+  new_price_target: true
+  # Bir analist ayni varlikta yon degistirdiginde (bullish <-> bearish)
+  stance_change: true
+  # Belirli sayida analist ayni varlikta ayni yonde birlestiginde
+  consensus:
+    enabled: true
+    min_analysts: 2
+    window_hours: 48

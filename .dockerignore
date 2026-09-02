@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.ruff_cache
+.pytest_cache
+data
+downloads
+*.sqlite
+*.db
+accounts.db
+.env
+whisper_models
+*.log

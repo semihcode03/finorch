@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Analistler — Financial Orchestrator{% endblock %}
+
+{% block content %}
+<h1>Analistler</h1>
+<p style="color:var(--muted);margin-top:4px;margin-bottom:28px;">
+  Takip edilen finansal analistler ve cikarim ozeti
+</p>
+
+{% if not analysts %}
+  <div class="card empty">Henuz analist kaydedilmemis. <code>finorch sync-config</code> calistirin.</div>
+{% else %}
+  {% for a in analysts %}
+  <div class="card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <h2 style="margin:0;">
+            <a href="/analyst/{{ a.id }}" style="color:var(--text);text-decoration:none;">
+              {{ a.name }}
+            </a>
+          </h2>
+          <span class="profile-badge profile-{{ a.profile_type }}">
+            {{ a.profile_type }}
+          </span>
+          <span class="badge">{{ a.language }}</span>
+        </div>
+        {% if a.focus %}
+          <p style="color:var(--muted);font-size:13px;max-width:600px;">{{ a.focus }}</p>
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <span class="stat-pill">Videolar <span>{{ a.video_count }}</span></span>
+        <span class="stat-pill">Kurallar <span>{{ a.rule_count }}</span></span>
+        <span class="stat-pill">Projeksiyonlar <span>{{ a.proj_count }}</span></span>
+        <span class="stat-pill">Kurulumlar <span>{{ a.setup_count }}</span></span>
+        <a href="/analyst/{{ a.id }}" class="btn">Detay &rarr;</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

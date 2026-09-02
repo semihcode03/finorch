@@ -1,0 +1,37 @@
+# Secrets & config
+.env
+.env*
+*.env
+!.env.example
+config/analysts.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Data / runtime
+data/
+downloads/
+*.sqlite
+*.sqlite3
+*.db
+accounts.db
+whisper_models/
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

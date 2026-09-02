@@ -1,0 +1,57 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finorch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-finorch}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Host tarafinda 5432 dolu olabilir (yerel Postgres); cakismayi onlemek icin 5433
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finorch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # docker aginda db host'u "db"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-finorch}:${POSTGRES_PASSWORD:-change_me_please}@db:5432/${POSTGRES_DB:-finorch}
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./data:/app/data
+      - whisper_models:/root/.cache/huggingface
+
+  dashboard:
+    build: .
+    restart: unless-stopped
+    command: finorch dashboard
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-finorch}:${POSTGRES_PASSWORD:-change_me_please}@db:5432/${POSTGRES_DB:-finorch}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./data:/app/data
+
+volumes:
+  pgdata:
+  whisper_models:

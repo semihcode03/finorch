@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Financial Orchestrator{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #22263a;
+      --border:   #2e3350;
+      --accent:   #4f8ef7;
+      --green:    #34d399;
+      --red:      #f87171;
+      --yellow:   #fbbf24;
+      --text:     #e2e8f0;
+      --muted:    #8892a4;
+      --radius:   8px;
+      --shadow:   0 2px 8px rgba(0,0,0,.4);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ---- navigasyon ---- */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      height: 52px;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    nav .brand {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: .3px;
+    }
+    nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
+    nav a:hover { color: var(--text); }
+
+    /* ---- sayfa icerigi ---- */
+    .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
+
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
+    h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+    /* ---- kart ---- */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+    }
+    .card + .card { margin-top: 16px; }
+
+    /* ---- etiket rozeti ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .3px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge-up    { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
+    .badge-down  { background: rgba(248,113,113,.12); border-color: var(--red);   color: var(--red);   }
+    .badge-neutral { background: rgba(251,191,36,.12); border-color: var(--yellow); color: var(--yellow); }
+    .badge-long  { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
+    .badge-short { background: rgba(248,113,113,.12); border-color: var(--red);   color: var(--red);   }
+
+    /* ---- guven cubugu ---- */
+    .confidence-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .confidence-bar .bar {
+      width: 60px;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .confidence-bar .fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+    }
+
+    /* ---- zaman damgasi linki ---- */
+    .ts-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--accent);
+      text-decoration: none;
+      background: rgba(79,142,247,.1);
+      border: 1px solid rgba(79,142,247,.25);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .ts-link:hover { background: rgba(79,142,247,.2); }
+    .ts-text {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    /* ---- alinti ---- */
+    .quote {
+      font-style: italic;
+      color: var(--muted);
+      font-size: 12px;
+      border-left: 3px solid var(--border);
+      padding-left: 10px;
+      margin-top: 6px;
+    }
+
+    /* ---- cikarim satirlari ---- */
+    .inference-list { list-style: none; }
+    .inference-list li {
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: var(--surface2);
+      margin-bottom: 6px;
+    }
+    .inference-list li .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .inference-list li .body { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    /* ---- sayac rozeti ---- */
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 10px;
+    }
+    .stat-pill span { font-weight: 600; color: var(--text); }
+
+    /* ---- video baslik satiri ---- */
+    .video-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .video-header .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .video-header h2 { margin-bottom: 2px; }
+
+    /* ---- bolum basligi ---- */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0 8px;
+    }
+    .section-header h3 { margin: 0; }
+
+    /* ---- tablo ---- */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    /* ---- link buton ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--accent);
+      border: 1px solid rgba(79,142,247,.4);
+      background: rgba(79,142,247,.08);
+      transition: background .15s;
+    }
+    .btn:hover { background: rgba(79,142,247,.18); }
+
+    /* ---- bos durum ---- */
+    .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+    /* ---- transkript ---- */
+    .transcript-line {
+      display: flex;
+      gap: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,.03);
+      font-size: 13px;
+    }
+    .transcript-line:last-child { border-bottom: none; }
+    .transcript-line .seg-text { color: var(--text); flex: 1; }
+
+    /* ---- profile turu ---- */
+    .profile-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .profile-macro    { background: rgba(79,142,247,.15); color: var(--accent); }
+    .profile-technical { background: rgba(52,211,153,.15); color: var(--green); }
+    .profile-mixed    { background: rgba(251,191,36,.15); color: var(--yellow); }
+
+    /* ---- duyarli tasarim ---- */
+    @media (max-width: 640px) {
+      .page { padding: 20px 12px 48px; }
+      .video-header { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="/">&#9670; Financial Orchestrator</a>
+    <a href="/">Analistler</a>
+  </nav>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
