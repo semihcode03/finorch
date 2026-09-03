@@ -8,6 +8,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from finorch.config import settings
 from finorch.pipeline import run_once, run_ticker
+from finorch.market.efloud_signal import refresh_efloud_signals
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +42,27 @@ def start() -> None:
         )
         logger.info("Piyasa seridi her %d dakikada bir tazelenecek.", ticker_interval)
 
+    if settings.efloud_signal_enabled and settings.market_enabled:
+        signal_interval = max(1, settings.efloud_signal_refresh_minutes)
+        scheduler.add_job(
+            refresh_efloud_signals,
+            "interval",
+            minutes=signal_interval,
+            id="efloud-btc-15m",
+            max_instances=1,
+            coalesce=True,
+            next_run_time=None,
+        )
+        logger.info("Efloud BTC 15dk teyitleri her %d dakikada bir taranacak.", signal_interval)
+
     logger.info("Zamanlayici basladi (her %d dakikada bir). Ilk dongu simdi calisiyor...", interval)
 
     # Baslangicta bir kez hemen calistir. Serit once gelsin ki dashboard
     # uzun suren ilk icerik dongusunu beklemeden dolu gorunsun.
     try:
         run_ticker()
+        if settings.efloud_signal_enabled and settings.market_enabled:
+            refresh_efloud_signals()
         run_once()
     except Exception as e:
         logger.error("Ilk dongu hatasi: %s", e)

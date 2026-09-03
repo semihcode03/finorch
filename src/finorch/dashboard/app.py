@@ -12,11 +12,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from sqlalchemy import func, select
+from starlette.middleware.gzip import GZipMiddleware
 
 from finorch.config import settings
 from finorch.dashboard.chart import Level, render_price_svg, render_sparkline
@@ -25,21 +27,105 @@ from finorch.db import (
     AnalystProfile,
     ContentMedia,
     MacroRule,
+    MarketQuote,
     PriceWatch,
     Projection,
     RawContent,
+    StrategySignal,
     TradeSetup,
     TranscriptSegment,
     get_session,
 )
 from finorch.market import get_history
+from finorch.market.chart_data import (
+    ChartDataError,
+    SUPPORTED_INTERVALS,
+    get_chart_payload,
+    normalize_chart_symbol,
+)
+from finorch.market.efloud_signal import REFERENCE_CHARTS, monitor_snapshot
 from finorch.market.symbols import display_name
 from finorch.market.ticker import load_quotes
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+_STATIC_DIR = Path(__file__).parent / "static"
+
+_CHART_SYMBOLS = [
+    ("Kripto", "BTC-USD", "Bitcoin"),
+    ("Kripto", "ETH-USD", "Ethereum"),
+    ("Kripto", "SOL-USD", "Solana"),
+    ("Emtia", "GC=F", "Altin"),
+    ("Emtia", "SI=F", "Gumus"),
+    ("Emtia", "CL=F", "WTI Petrol"),
+    ("Emtia", "BZ=F", "Brent Petrol"),
+    ("BIST", "XU100.IS", "BIST 100"),
+    ("BIST", "THYAO.IS", "THYAO"),
+    ("BIST", "ASELS.IS", "ASELS"),
+    ("BIST", "GARAN.IS", "GARAN"),
+    ("ABD", "AAPL", "Apple"),
+    ("ABD", "MSFT", "Microsoft"),
+    ("ABD", "NVDA", "NVIDIA"),
+    ("ABD", "SPY", "S&P 500 ETF"),
+]
 
 # Ana sayfada analist basina gosterilecek satir siniri (fazlasi icin detaya gidilir)
 _INDEX_ROW_LIMIT = 6
+
+_SIGNAL_STATUS_LABELS = {
+    "active": "AKTIF SINYAL",
+    "managed": "1R ALINDI / YONETILIYOR",
+    "closed_be": "KALAN POZISYON BASABAS KAPANDI",
+    "invalidated": "GECERSIZ",
+}
+
+
+def _efloud_twin_state(session: Any) -> dict[str, Any]:
+    """Ana sayfa icin yalnizca DB onbelleginden canli teknik ikiz ozeti."""
+    quote = session.scalar(select(MarketQuote).where(MarketQuote.symbol == "BTC-USD"))
+    signal = session.scalar(
+        select(StrategySignal)
+        .where(
+            StrategySignal.strategy == "efloud-btc-confirmation-v1",
+            StrategySignal.symbol == "BTC-USD",
+            StrategySignal.timeframe == "15m",
+        )
+        .order_by(StrategySignal.candle_time.desc())
+        .limit(1)
+    )
+    price = quote.price if quote else None
+    if price is None:
+        bias, bias_label = "unknown", "VERI BEKLENIYOR"
+        note = "BTC kotasyonu henuz onbellege gelmedi."
+    elif price >= settings.efloud_btc_reclaim:
+        bias, bias_label = "bullish", "YUKARI KIRILIM"
+        note = "82.300 uzeri; YO ve yeni HTF direnc bolgesi senaryosu aktif."
+    elif price < settings.efloud_btc_invalidation:
+        bias, bias_label = "bearish", "LTF NEGATIF UYARI"
+        note = "76.000 alti; 72.500 senaryosu icin HTF kapanis teyidi gerekir."
+    elif price >= settings.efloud_btc_support:
+        bias, bias_label = "constructive", "YAPICI / TEYIT ODAKLI"
+        note = "76.400 korunuyor; 82.300 geri alimi ana yukari tetik."
+    else:
+        bias, bias_label = "warning", "DESTEK BASKI ALTINDA"
+        note = "76.400 kayip; 76.000 ve HTF kapanis kritik."
+    return {
+        "price": price,
+        "price_text": _fmt_price(price),
+        "quote_updated_at": quote.updated_at if quote else None,
+        "bias": bias,
+        "bias_label": bias_label,
+        "note": note,
+        "signal": signal,
+        "signal_label": _SIGNAL_STATUS_LABELS.get(signal.status, signal.status) if signal else "TEYIT BEKLENIYOR",
+        "levels": {
+            "support": settings.efloud_btc_support,
+            "invalidation": settings.efloud_btc_invalidation,
+            "downside": settings.efloud_btc_downside_target,
+            "reclaim": settings.efloud_btc_reclaim,
+        },
+        "content_model": settings.openai_model,
+        "references": REFERENCE_CHARTS,
+    }
 
 # Izleme sayfasinda grafik cizilecek en fazla farkli sembol sayisi
 _CHART_LIMIT = 16
@@ -182,6 +268,8 @@ def create_app() -> FastAPI:
         docs_url=None,
         redoc_url=None,
     )
+    fastapi_app.add_middleware(GZipMiddleware, minimum_size=1000)
+    fastapi_app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     # Jinja2 global yardimci fonksiyonlar
@@ -194,6 +282,85 @@ def create_app() -> FastAPI:
     # base.html seridi her sayfada cizer; veriyi sablonun kendisi ceker
     templates.env.globals["ticker_quotes"] = _ticker_quotes
     templates.env.globals["ticker_poll_seconds"] = max(10, settings.ticker_poll_seconds)
+
+    @fastapi_app.get("/charts", response_class=HTMLResponse)
+    async def charts(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request,
+            "charts.html",
+            {"chart_symbols": _CHART_SYMBOLS, "chart_intervals": SUPPORTED_INTERVALS},
+        )
+
+    @fastapi_app.get("/api/charts/data")
+    def chart_data(
+        symbol: str = Query(default="BTC-USD", min_length=1, max_length=40),
+        interval: str = Query(default="15m"),
+    ) -> dict[str, Any]:
+        try:
+            normalized_symbol = normalize_chart_symbol(symbol)
+        except ChartDataError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if interval not in SUPPORTED_INTERVALS:
+            raise HTTPException(status_code=422, detail="Desteklenmeyen periyot")
+        try:
+            payload = get_chart_payload(normalized_symbol, interval)
+        except ChartDataError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        with get_session() as session:
+            watches = session.scalars(
+                select(PriceWatch).where(
+                    PriceWatch.symbol == payload["meta"]["symbol"],
+                    PriceWatch.trigger_price.is_not(None),
+                    PriceWatch.status.in_(("watching", "triggered")),
+                )
+            ).all()
+        payload["price_lines"] = [
+            {
+                "price": watch.trigger_price,
+                "title": _trigger_text(watch),
+                "color": "#05713f" if watch.status == "triggered" else "#1f5fd0",
+            }
+            for watch in watches[:8]
+        ]
+        payload["efloud_signal"] = None
+        if normalized_symbol == "BTC-USD" and interval == "15m" and settings.efloud_signal_enabled:
+            signal_state = monitor_snapshot(payload["candles"])
+            payload["efloud_signal"] = signal_state
+            levels = signal_state["levels"]
+            payload["price_lines"].extend(
+                [
+                    {"price": levels["support"], "title": "Efloud destek 76.400", "color": "#05713f"},
+                    {"price": levels["invalidation"], "title": "LTF uyari 76.000", "color": "#a8261a"},
+                    {"price": levels["reclaim"], "title": "HTF reclaim 82.300", "color": "#7c3aed"},
+                    {"price": levels["downside_target"], "title": "Asagi senaryo 72.500", "color": "#a85b18"},
+                ]
+            )
+            chart_markers: list[dict[str, Any]] = []
+            for signal in signal_state["signals"]:
+                chart_markers.append(
+                    {
+                        "kind": "entry", "direction": signal["direction"],
+                        "time": signal["candle_time"],
+                        "label": f"15dk teyit {signal['entry']:,.0f}",
+                    }
+                )
+                if signal["target_hit_time"]:
+                    chart_markers.append(
+                        {
+                            "kind": "target", "direction": signal["direction"],
+                            "time": signal["target_hit_time"], "label": "1R / stop girise",
+                        }
+                    )
+                elif signal["invalidated_time"]:
+                    chart_markers.append(
+                        {
+                            "kind": "stop", "direction": signal["direction"],
+                            "time": signal["invalidated_time"], "label": "Gecersiz",
+                        }
+                    )
+            payload["trades"] = chart_markers
+        return payload
 
     # ------------------------------------------------------------------ #
     #  GET /partials/ticker  - kayan seridin icerigi (tarayici periyodik ceker) #
@@ -212,6 +379,18 @@ def create_app() -> FastAPI:
             headers={"Cache-Control": "no-store"},
         )
 
+    @fastapi_app.get("/partials/efloud-twin", response_class=HTMLResponse)
+    async def efloud_twin_partial(request: Request) -> HTMLResponse:
+        """Canli teknik ikiz kartini DB onbelleginden tazeler."""
+        with get_session() as session:
+            state = _efloud_twin_state(session)
+        return templates.TemplateResponse(
+            request,
+            "_efloud_twin.html",
+            {"efloud_twin": state},
+            headers={"Cache-Control": "no-store"},
+        )
+
     # ------------------------------------------------------------------ #
     #  GET /  - ana sayfa: analist basina bir box                          #
     # ------------------------------------------------------------------ #
@@ -221,6 +400,7 @@ def create_app() -> FastAPI:
         rows: list[dict[str, Any]] = []
 
         with get_session() as session:
+            efloud_twin = _efloud_twin_state(session)
             analysts = session.execute(
                 select(Analyst).order_by(Analyst.name)
             ).scalars().all()
@@ -330,10 +510,11 @@ def create_app() -> FastAPI:
                     "live_rules": live_rules[:_INDEX_ROW_LIMIT],
                     "live_rules_total": len(live_rules),
                     "projections": projections[:_INDEX_ROW_LIMIT],
+                    "is_efloud": analyst.name.strip().casefold() == "efloud",
                 })
 
         return templates.TemplateResponse(
-            request, "index.html", {"analysts": rows}
+            request, "index.html", {"analysts": rows, "efloud_twin": efloud_twin}
         )
 
     # ------------------------------------------------------------------ #
@@ -435,6 +616,11 @@ def create_app() -> FastAPI:
             profile = session.scalar(
                 select(AnalystProfile).where(AnalystProfile.analyst_id == analyst_id)
             )
+            efloud_twin = (
+                _efloud_twin_state(session)
+                if analyst.name.strip().casefold() == "efloud"
+                else None
+            )
 
             # Videolari yayinlanma tarihine gore sirala; tarih yoksa cekilme tarihine gore
             contents_raw = session.execute(
@@ -486,6 +672,7 @@ def create_app() -> FastAPI:
                 "analyst": analyst,
                 "profile": profile,
                 "contents": contents,
+                "efloud_twin": efloud_twin,
             },
         )
 
@@ -536,7 +723,25 @@ def create_app() -> FastAPI:
                 "projections": projections,
                 "setups": setups,
                 "media_items": media_items,
+                "has_chart_references": any(item.is_chart for item in media_items),
             },
         )
+
+    @fastapi_app.get("/media/{media_id}", response_class=FileResponse)
+    def content_media_file(media_id: int) -> FileResponse:
+        """Ingestion tarafindan data dizinine yazilan referans karesini guvenle sunar."""
+        with get_session() as session:
+            media = session.get(ContentMedia, media_id)
+            local_path = media.local_path if media else ""
+        if not local_path:
+            raise HTTPException(status_code=404, detail="Gorsel bulunamadi")
+        path = Path(local_path)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        path = path.resolve()
+        data_root = settings.data_dir.resolve()
+        if not path.is_relative_to(data_root) or not path.is_file():
+            raise HTTPException(status_code=404, detail="Gorsel bulunamadi")
+        return FileResponse(path)
 
     return fastapi_app

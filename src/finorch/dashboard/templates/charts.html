@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Grafikler - Financial Orchestrator{% endblock %}
+
+{% block head %}
+<style>
+  .page:has(.chart-workspace) { max-width: 1480px; padding-top: 20px; }
+  .chart-workspace { min-width: 0; }
+  .chart-toolbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+  }
+  .chart-toolbar select, .chart-toolbar input {
+    height: 34px; border: 1px solid var(--border-2); border-radius: 5px;
+    background: var(--surface); color: var(--text); padding: 0 9px; font: inherit;
+  }
+  .chart-toolbar input { width: 132px; font-family: var(--mono); text-transform: uppercase; }
+  .chart-toolbar .symbol-select { min-width: 184px; }
+  .chart-toolbar .spacer { flex: 1 1 18px; }
+  .chart-toolbar button {
+    width: 34px; height: 34px; display: inline-grid; place-items: center;
+    border: 1px solid var(--border-2); border-radius: 5px; background: var(--surface);
+    color: var(--text-2); cursor: pointer; font-size: 17px;
+  }
+  .chart-toolbar button:hover { background: var(--surface-3); color: var(--text); }
+  .indicator-toggle {
+    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 9px;
+    border: 1px solid var(--border); border-radius: 5px; color: var(--text-2);
+    background: var(--surface-2); font-size: 12px; cursor: pointer; user-select: none;
+  }
+  .indicator-toggle input { width: 14px; height: 14px; accent-color: var(--accent); }
+  .chart-stage {
+    position: relative; height: min(72vh, 760px); min-height: 520px;
+    border: 1px solid var(--border); border-top: 0; background: #fff;
+  }
+  .signal-panel {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px;
+    align-items: center; padding: 11px 13px; border: 1px solid var(--border);
+    border-top: 0; background: #f8fafc; font-size: 12px;
+  }
+  .signal-panel[hidden] { display: none; }
+  .signal-badge { padding: 5px 8px; border-radius: 999px; color: #fff; background: #667085; font-weight: 700; }
+  .signal-badge.is-positive { background: #05713f; }
+  .signal-badge.is-warning { background: #a85b18; }
+  .signal-copy strong { display: block; margin-bottom: 3px; color: var(--text); }
+  .signal-copy span { color: var(--text-2); }
+  .signal-references { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .signal-references a { color:var(--accent); font-size:10.5px; text-decoration:none; }
+  .signal-levels { color: var(--text-2); font: 11px var(--mono); text-align: right; }
+  #financial-chart { width: 100%; height: 100%; }
+  .chart-loading {
+    position: absolute; inset: 0; display: grid; place-items: center; z-index: 4;
+    color: var(--text-2); background: rgba(255,255,255,.82); font-size: 13px;
+  }
+  .chart-loading[hidden] { display: none; }
+  .chart-tooltip {
+    position: absolute; z-index: 3; top: 12px; left: 14px; pointer-events: none;
+    display: flex; gap: 11px; padding: 5px 8px; border: 1px solid var(--border);
+    border-radius: 4px; background: rgba(255,255,255,.9); color: var(--text-2);
+    font: 11px var(--mono); backdrop-filter: blur(5px);
+  }
+  .chart-summary {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    min-height: 42px; padding: 8px 12px; border: 1px solid var(--border); border-top: 0;
+    border-radius: 0 0 var(--r-sm) var(--r-sm); background: var(--surface);
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .chart-summary strong { color: var(--text); font-family: var(--mono); font-weight: 620; }
+  .chart-summary a { color: var(--text-2); margin-left: auto; }
+  .chart-error { color: var(--down); }
+  @media (max-width: 640px) {
+    .chart-stage { height: 66vh; min-height: 440px; }
+    .chart-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 68px 34px; }
+    .chart-toolbar .spacer { display: none; }
+    .chart-toolbar .symbol-select { grid-column: 1 / -1; width: 100%; min-width: 0; }
+    .chart-toolbar input { grid-column: 1; width: 100%; min-width: 0; }
+    .chart-toolbar .indicator-toggle { justify-content: center; padding: 0 4px; }
+    .chart-tooltip { max-width: calc(100% - 28px); overflow: hidden; }
+    .chart-summary { gap: 8px 14px; }
+    .chart-summary a { margin-left: 0; }
+    .signal-panel { grid-template-columns: auto 1fr; }
+    .signal-levels { grid-column: 1 / -1; text-align: left; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="chart-workspace">
+  <div class="chart-toolbar" aria-label="Grafik araclari">
+    <select id="symbol-select" class="symbol-select" aria-label="Hazir sembol">
+      {% set current_group = namespace(value='') %}
+      {% for group, symbol, label in chart_symbols %}
+        {% if group != current_group.value %}
+          {% if current_group.value %}</optgroup>{% endif %}
+          <optgroup label="{{ group }}">
+          {% set current_group.value = group %}
+        {% endif %}
+        <option value="{{ symbol }}" {% if symbol == 'BTC-USD' %}selected{% endif %}>{{ label }} · {{ symbol }}</option>
+      {% endfor %}
+      </optgroup>
+    </select>
+    <input id="symbol-input" value="BTC-USD" maxlength="40" aria-label="Sembol" />
+    <select id="interval-select" aria-label="Periyot">
+      {% for interval in chart_intervals %}
+        <option value="{{ interval }}" {% if interval == '15m' %}selected{% endif %}>{{ interval }}</option>
+      {% endfor %}
+    </select>
+    <button id="reload-chart" type="button" title="Grafigi yenile" aria-label="Grafigi yenile">↻</button>
+    <span class="spacer"></span>
+    <label class="indicator-toggle"><input id="toggle-sma" type="checkbox" checked /> SMA 20</label>
+    <label class="indicator-toggle"><input id="toggle-ema" type="checkbox" checked /> EMA 50</label>
+    <label class="indicator-toggle"><input id="toggle-rsi" type="checkbox" checked /> RSI 14</label>
+  </div>
+
+  <div class="chart-stage">
+    <div id="financial-chart"></div>
+    <div id="chart-tooltip" class="chart-tooltip" hidden></div>
+    <div id="chart-loading" class="chart-loading">Piyasa verisi yukleniyor...</div>
+  </div>
+
+  <div id="efloud-signal-panel" class="signal-panel" hidden>
+    <span id="efloud-signal-badge" class="signal-badge">IZLENIYOR</span>
+    <div class="signal-copy">
+      <strong id="efloud-signal-title">Efloud BTC 15dk teyit motoru</strong>
+      <span id="efloud-signal-note"></span>
+      <div id="efloud-signal-references" class="signal-references"></div>
+    </div>
+    <div id="efloud-signal-levels" class="signal-levels"></div>
+  </div>
+
+  <div class="chart-summary">
+    <span>Kaynak <strong id="chart-provider">-</strong></span>
+    <span>Mum <strong id="chart-bars">-</strong></span>
+    <span>Aralik <strong id="chart-range">-</strong></span>
+    <span id="chart-status">Hazirlaniyor</span>
+    <a href="https://www.tradingview.com/" target="_blank" rel="noopener">Charts by TradingView</a>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/lightweight-charts.js"></script>
+<script src="/static/chart-workspace.js"></script>
+{% endblock %}

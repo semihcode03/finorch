@@ -77,6 +77,17 @@ class Settings(BaseSettings):
     # Tarayici seridi kac saniyede bir yeniden ceksin
     ticker_poll_seconds: int = 60
 
+    # Efloud'dan turetilen, aciklanabilir BTC 15dk teyit takipcisi.
+    # Seviyeler ortam degiskenleriyle degistirilebilir; kod bir analistin
+    # gelecekteki kararlarini tahmin ettigini iddia etmez.
+    efloud_signal_enabled: bool = True
+    efloud_signal_refresh_minutes: int = 5
+    efloud_btc_support: float = 76400.0
+    efloud_btc_invalidation: float = 76000.0
+    efloud_btc_downside_target: float = 72500.0
+    efloud_btc_reclaim: float = 82300.0
+    efloud_zone_pct: float = 0.35
+
     # Genel
     data_dir: Path = Path("./data")
     poll_interval_minutes: int = 30

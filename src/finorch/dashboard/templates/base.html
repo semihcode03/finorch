@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
   <title>{% block title %}Financial Orchestrator{% endblock %}</title>
+  {% block head %}{% endblock %}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -77,6 +79,7 @@
       background: var(--accent);
       box-shadow: 0 0 0 3px var(--accent-bg);
     }
+    nav .brand-short { display: none; }
     nav .links { display: flex; gap: 18px; margin-left: 6px; }
     nav .links a {
       color: var(--text-2); text-decoration: none; font-size: 13px; font-weight: 500;
@@ -132,6 +135,42 @@
     .box-head .sub { color: var(--text-2); font-size: 12.5px; max-width: 620px; }
 
     .box-body { padding: 6px 22px 18px; }
+
+    /* ================= teknik dijital ikiz ================= */
+    .twin-card {
+      border: 1px solid var(--border-2); border-left: 4px solid var(--accent);
+      border-radius: var(--r-sm); padding: 14px 15px; background: linear-gradient(135deg,#f8fbff,#fff);
+    }
+    .twin-card.twin-constructive, .twin-card.twin-bullish { border-left-color: var(--up); }
+    .twin-card.twin-warning, .twin-card.twin-bearish { border-left-color: var(--down); }
+    .twin-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .twin-price { margin-top:3px; font:700 24px var(--mono); letter-spacing:-.04em; }
+    .twin-stamp { color:var(--muted); font-size:10.5px; }
+    .twin-state { display:flex; flex-direction:column; align-items:flex-end; gap:5px; text-align:right; }
+    .twin-state strong { font-size:12px; color:var(--up); }
+    .twin-bias { font-size:10px; font-weight:750; letter-spacing:.06em; color:var(--text-2); }
+    .twin-note { margin-top:12px; color:var(--text); font-size:13px; }
+    .twin-stack { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:10px; }
+    .twin-stack span { padding:3px 7px; border:1px solid #cfdefb; border-radius:4px; background:var(--accent-bg); color:var(--accent); font-size:10.5px; font-weight:650; }
+    .twin-stack i { color:var(--muted); font-style:normal; }
+    .twin-trade { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px; padding:9px 10px; background:var(--surface); border:1px solid var(--border); border-radius:5px; font:11.5px var(--mono); }
+    .twin-trade .up { color:var(--up); } .twin-trade .down { color:var(--down); }
+    .twin-rationale { margin-top:8px; color:var(--text-2); font-size:11.5px; }
+    .twin-levels { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:12px; }
+    .twin-levels span { padding:7px 9px; border-radius:5px; background:var(--surface-3); font:650 12px var(--mono); }
+    .twin-levels small { display:block; color:var(--muted); font:9.5px Inter,sans-serif; text-transform:uppercase; letter-spacing:.05em; }
+    .twin-references { display:flex; align-items:stretch; flex-wrap:wrap; gap:7px; margin-top:12px; padding-top:11px; border-top:1px solid var(--border); }
+    .twin-references > .label { width:100%; }
+    .twin-references a { min-width:170px; flex:1 1 180px; padding:7px 9px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text-2); font-size:10.5px; text-decoration:none; }
+    .twin-references a:hover { border-color:var(--accent); }
+    .twin-references a b { color:var(--accent); margin-right:4px; }
+    .twin-references a small { display:block; margin-top:2px; color:var(--muted); }
+    .twin-footer { display:flex; gap:12px 20px; flex-wrap:wrap; margin-top:11px; color:var(--muted); font-size:10.5px; }
+    .twin-footer a { margin-left:auto; color:var(--accent); font-weight:650; text-decoration:none; }
+    @media (max-width:640px) {
+      .twin-levels { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .twin-footer a { margin-left:0; width:100%; }
+    }
 
     /* ================= grup (onemli / anlik) ================= */
     .group { padding-top: 16px; }
@@ -445,6 +484,9 @@
     }
     @media (max-width: 640px) {
       nav { padding: 0 16px; gap: 14px; }
+      nav .brand-long { display: none; }
+      nav .brand-short { display: inline; }
+      nav .links { gap: 12px; margin-left: 0; }
       .page { padding: 22px 14px 56px; }
       .box-head, .box-body { padding-left: 15px; padding-right: 15px; }
       .row .tail { margin-left: 0; }
@@ -455,10 +497,11 @@
 </head>
 <body>
   <nav>
-    <a class="brand" href="/"><span class="dot"></span> Financial Orchestrator</a>
+    <a class="brand" href="/"><span class="dot"></span><span class="brand-long">Financial Orchestrator</span><span class="brand-short">FinOrch</span></a>
     <span class="links">
       <a href="/">Analistler</a>
       <a href="/watches">Fiyat izlemeleri</a>
+      <a href="/charts">Grafikler</a>
     </span>
   </nav>
 
@@ -502,6 +545,22 @@
         if (!document.hidden) refresh();  // sekmeye donunce bayat fiyat gosterme
       });
     })();
+
+    // Efloud teknik ikizi yalnizca bulundugu sayfalarda, ag'a cikmadan DB
+    // onbelleginden dakikada bir tazelenir.
+    (function () {
+      var host = document.querySelector("[data-efloud-twin]");
+      if (!host) return;
+      function refreshTwin() {
+        if (document.hidden) return;
+        fetch("/partials/efloud-twin", { headers: { Accept: "text/html" } })
+          .then(function (r) { return r.ok ? r.text() : null; })
+          .then(function (html) { if (html) host.innerHTML = html; })
+          .catch(function () {});
+      }
+      setInterval(refreshTwin, 60000);
+    })();
   </script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

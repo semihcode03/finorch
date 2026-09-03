@@ -21,6 +21,16 @@
 # ne kadarinin kendi analizi oldugunu gorebilirsiniz.
 
 analysts:
+  # Guvenilir teknik profil ornegi: egitim videolari geldikce ayni analiste
+  # youtube kaynaklari eklenebilir.
+  - name: "Efloud"
+    type: technical
+    language: "tr"
+    focus: "BTC ve kripto teknik analizi; HTF bias, kurumsal acilis seviyeleri, LTF teyit ve risk yonetimi"
+    sources:
+      - type: x
+        ref: "Efloud"
+
   # --- Makro / anlati hesabi ornegi ---
   - name: "Makro Analist"
     type: macro

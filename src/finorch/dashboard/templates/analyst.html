@@ -20,6 +20,10 @@
   {% if analyst.focus %}<p>{{ analyst.focus }}</p>{% endif %}
 </div>
 
+{% if efloud_twin %}
+  <div data-efloud-twin>{% include "_efloud_twin.html" %}</div>
+{% endif %}
+
 {# ---------- hesabin yontem profili: tek tek cikarimlarin ustundeki katman ---------- #}
 {% if profile and profile.summary %}
 <div class="profile-card">

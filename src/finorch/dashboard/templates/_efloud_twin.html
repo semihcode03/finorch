@@ -1,0 +1,57 @@
+<div class="twin-card twin-{{ efloud_twin.bias }}">
+  <div class="twin-top">
+    <div>
+      <span class="label">Teknik dijital ikiz · BTC 15dk</span>
+      <div class="twin-price">{{ efloud_twin.price_text }}</div>
+      <div class="twin-stamp">
+        {% if efloud_twin.quote_updated_at %}
+          Son kotasyon {{ efloud_twin.quote_updated_at.strftime('%d.%m.%Y %H:%M') }}
+        {% else %}Kotasyon bekleniyor{% endif %}
+      </div>
+    </div>
+    <div class="twin-state">
+      <span class="twin-bias">{{ efloud_twin.bias_label }}</span>
+      <strong>{{ efloud_twin.signal_label }}</strong>
+    </div>
+  </div>
+
+  <p class="twin-note">{{ efloud_twin.note }}</p>
+
+  <div class="twin-stack" aria-label="Efloud karar akisi">
+    <span>HTF bias</span><i>&rarr;</i><span>kurumsal seviye</span><i>&rarr;</i>
+    <span>sweep / reclaim</span><i>&rarr;</i><span>15dk teyit</span><i>&rarr;</i>
+    <span>1R + basabas</span>
+  </div>
+
+  {% if efloud_twin.signal %}
+  <div class="twin-trade">
+    <span>Teyit <b>{{ fmt_price(efloud_twin.signal.entry) }}</b></span>
+    <span>SL <b class="down">{{ fmt_price(efloud_twin.signal.stop_loss) }}</b></span>
+    <span>1R <b class="up">{{ fmt_price(efloud_twin.signal.take_profit) }}</b></span>
+    <span>Guven <b>%{{ "%.0f"|format(efloud_twin.signal.confidence * 100) }}</b></span>
+  </div>
+  <p class="twin-rationale">{{ efloud_twin.signal.rationale }}</p>
+  {% endif %}
+
+  <div class="twin-levels">
+    <span><small>Asagi hedef</small>{{ fmt_price(efloud_twin.levels.downside) }}</span>
+    <span><small>Gecersiz/LTF</small>{{ fmt_price(efloud_twin.levels.invalidation) }}</span>
+    <span><small>Destek</small>{{ fmt_price(efloud_twin.levels.support) }}</span>
+    <span><small>HTF reclaim</small>{{ fmt_price(efloud_twin.levels.reclaim) }}</span>
+  </div>
+
+  <div class="twin-references">
+    <span class="label">Cikarimda kullanilan grafikler</span>
+    {% for ref in efloud_twin.references %}
+      <a href="{{ ref.url }}" {% if ref.url.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
+        <b>{{ ref.timeframe }}</b> {{ ref.label }}<small>{{ ref.role }}</small>
+      </a>
+    {% endfor %}
+  </div>
+
+  <div class="twin-footer">
+    <span>Kural motoru <b>confirmation-v1</b></span>
+    <span>Icerik modeli <b>{{ efloud_twin.content_model }}</b></span>
+    <a href="/charts">15dk grafigi ac &rarr;</a>
+  </div>
+</div>

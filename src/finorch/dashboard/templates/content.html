@@ -28,12 +28,24 @@
 
 {# ---------- gorseller / kareler ---------- #}
 {% if media_items %}
-<section class="box" style="margin-bottom:18px;">
-  <div class="box-head plain"><span class="label">Gorseller / Kareler</span></div>
+<section id="reference-charts" class="box" style="margin-bottom:18px;">
+  <div class="box-head plain">
+    <span class="label">Cikarim referanslari / grafik kareleri</span>
+    {% if has_chart_references %}<span class="chip chip-sector">grafik referansi var</span>{% endif %}
+  </div>
   <div class="box-body">
     <div class="group" style="display:flex;flex-wrap:wrap;gap:12px;">
       {% for mi in media_items %}
         <div class="media-card">
+          {% if mi.local_path %}
+            <a href="/media/{{ mi.id }}" target="_blank" rel="noopener">
+              <img src="/media/{{ mi.id }}" alt="Cikarimda kullanilan grafik karesi" loading="lazy" style="display:block;width:100%;max-height:300px;object-fit:contain;border-radius:5px;background:#f4f5f7;" />
+            </a>
+          {% elif mi.url %}
+            <a href="{{ mi.url }}" target="_blank" rel="noopener">
+              <img src="{{ mi.url }}" alt="Cikarimda kullanilan kaynak gorsel" loading="lazy" style="display:block;width:100%;max-height:300px;object-fit:contain;border-radius:5px;background:#f4f5f7;" />
+            </a>
+          {% endif %}
           {% if mi.timestamp_sec is not none %}
             {{ m.tslink(ts_link(content.url, content.source_type, mi.timestamp_sec), fmt_mmss(mi.timestamp_sec)) }}
           {% endif %}
@@ -41,6 +53,9 @@
             <p style="font-size:12.5px;color:var(--text-2);margin-top:6px;">{{ mi.vision_text }}</p>
           {% endif %}
           <span class="chip" style="margin-top:7px;display:inline-block;">{{ mi.kind }}</span>
+          {% if mi.is_chart %}<span class="chip chip-sector">grafik</span>{% endif %}
+          {% if mi.chart_symbol %}<span class="chip">{{ mi.chart_symbol }}</span>{% endif %}
+          {% if mi.chart_timeframe %}<span class="chip">{{ mi.chart_timeframe }}</span>{% endif %}
         </div>
       {% endfor %}
     </div>

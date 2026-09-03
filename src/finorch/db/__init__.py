@@ -12,6 +12,7 @@ from finorch.db.models import (
     Projection,
     RawContent,
     Source,
+    StrategySignal,
     TradeSetup,
     TranscriptSegment,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "Analyst",
     "AnalystProfile",
     "Source",
+    "StrategySignal",
     "RawContent",
     "ContentMedia",
     "TranscriptSegment",

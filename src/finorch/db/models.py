@@ -286,6 +286,38 @@ class TradeSetup(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class StrategySignal(Base):
+    """Mum verisinden deterministik olarak uretilen ve yasam dongusu izlenen sinyal."""
+
+    __tablename__ = "strategy_signals"
+    __table_args__ = (UniqueConstraint("dedup_key", name="uq_strategy_signal_dedup"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dedup_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    strategy: Mapped[str] = mapped_column(String(80), index=True)
+    symbol: Mapped[str] = mapped_column(String(40), index=True)
+    timeframe: Mapped[str] = mapped_column(String(20), index=True)
+    direction: Mapped[str] = mapped_column(String(10))
+    kind: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(24), index=True)
+    bias: Mapped[str] = mapped_column(String(40), default="")
+    entry: Mapped[float] = mapped_column(Float)
+    stop_loss: Mapped[float] = mapped_column(Float)
+    take_profit: Mapped[float] = mapped_column(Float)
+    rr: Mapped[float] = mapped_column(Float, default=1.0)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    evidence_json: Mapped[str] = mapped_column(Text, default="{}")
+    source_url: Mapped[str] = mapped_column(Text, default="")
+    candle_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    target_hit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class PriceWatch(Base):
     """Fiyata bagli, izlenebilir bir kosul: "X seviyesi asilirsa islem acacagim".
 

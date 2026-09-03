@@ -100,6 +100,10 @@
     {# ---------- box govdesi ---------- #}
     <div class="box-body">
 
+      {% if a.is_efloud %}
+        <div class="group"><div data-efloud-twin>{% include "_efloud_twin.html" %}</div></div>
+      {% endif %}
+
       {# --- anlik kurallar: analistin su an soyledikleri --- #}
       <div class="group">
         <div class="group-head">
