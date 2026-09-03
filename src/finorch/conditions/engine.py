@@ -37,25 +37,30 @@ def _analyst_name(session: Session, analyst_id: int | None) -> str:
 
 def evaluate_projection(session: Session, proj: Projection) -> list[Alert]:
     name = _analyst_name(session, proj.analyst_id)
+    # Somut kod yoksa hedef olarak sektor kullanilir
+    target_name = proj.asset or proj.sector
     target = f", hedef {proj.price_target}" if proj.price_target is not None else ""
     horizon = f" ({proj.horizon})" if proj.horizon else ""
+    condition = f"EGER {proj.conditions} -> " if proj.conditions else ""
     msg = (
-        f"[Projeksiyon] {name} - {proj.asset}{horizon}: "
-        f"{proj.direction or 'senaryo'}{target}. {proj.scenario}"
+        f"[Projeksiyon] {name} - {target_name}{horizon}: "
+        f"{condition}{proj.scenario}{target}"
     )
     key = f"proj:{proj.id}"
-    alert = _add_alert(session, "projection", proj.asset, msg, key)
+    alert = _add_alert(session, "projection", target_name, msg, key)
     return [alert] if alert else []
 
 
 def evaluate_macro_rule(session: Session, mr: MacroRule) -> list[Alert]:
     name = _analyst_name(session, mr.analyst_id)
+    target_name = mr.effect_asset or mr.effect_sector
+    tickers = f" [{mr.effect_tickers}]" if mr.effect_tickers else ""
     msg = (
-        f"[Kural] {name}: EGER {mr.condition} -> {mr.effect_asset} "
+        f"[Kural] {name}: EGER {mr.condition} -> {target_name}{tickers} "
         f"{mr.effect_direction}. {mr.rationale}"
     )
     key = f"rule:{mr.id}"
-    alert = _add_alert(session, "macro_rule", mr.effect_asset, msg, key)
+    alert = _add_alert(session, "macro_rule", target_name, msg, key)
     return [alert] if alert else []
 
 

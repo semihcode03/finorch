@@ -1,189 +1,219 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}{{ analyst.name }} — Financial Orchestrator{% endblock %}
 
-{% macro render_ts(url, source_type, sec, quote) %}
-  {% set link = ts_link(url, source_type, sec) %}
-  {% if link %}
-    <a class="ts-link" href="{{ link }}" target="_blank" rel="noopener">
-      &#9654; {{ fmt_mmss(sec) }}
-    </a>
-  {% elif sec is not none %}
-    <span class="ts-text">{{ fmt_mmss(sec) }}</span>
+{% macro class_chip(rule_class) %}
+  {% if rule_class == 'live' %}<span class="chip" title="Guncel/tarihli gorus">anlik</span>
+  {% elif rule_class == 'key' %}<span class="chip" title="Kalici/yapisal mekanizma">onemli</span>
   {% endif %}
-  {% if quote %}
-    <span class="quote" style="display:inline;border:none;padding:0;font-size:11px;">"{{ quote }}"</span>
-  {% endif %}
-{% endmacro %}
-
-{% macro confidence_bar(val) %}
-  <span class="confidence-bar">
-    <span class="bar"><span class="fill" style="width:{{ (val * 100)|int }}%"></span></span>
-    {{ "%.0f"|format(val * 100) }}%
-  </span>
 {% endmacro %}
 
 {% block content %}
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-  <a href="/" style="color:var(--muted);font-size:13px;text-decoration:none;">&larr; Analistler</a>
+<a class="back" href="/">&larr; Analistler</a>
+
+<div class="page-head">
+  <div class="title-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <h1>{{ analyst.name }}</h1>
+    <span class="profile-badge profile-{{ analyst.profile_type }}">{{ analyst.profile_type }}</span>
+    <span class="chip">{{ analyst.language }}</span>
+  </div>
+  {% if analyst.focus %}<p>{{ analyst.focus }}</p>{% endif %}
 </div>
 
-<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:28px;">
-  <div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-      <h1>{{ analyst.name }}</h1>
-      <span class="profile-badge profile-{{ analyst.profile_type }}">{{ analyst.profile_type }}</span>
-      <span class="badge">{{ analyst.language }}</span>
-    </div>
-    {% if analyst.focus %}
-      <p style="color:var(--muted);font-size:13px;">{{ analyst.focus }}</p>
+{# ---------- hesabin yontem profili: tek tek cikarimlarin ustundeki katman ---------- #}
+{% if profile and profile.summary %}
+<div class="profile-card">
+  <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+    <span class="label" style="color:var(--accent);">Bu hesap nasil dusunuyor</span>
+    {% if profile.signal_style %}
+      <span class="chip chip-sector">{{ profile.signal_style }}</span>
     {% endif %}
   </div>
+
+  <p class="summary">{{ profile.summary }}</p>
+
+  <dl class="profile-grid">
+    {% if profile.methodology %}
+      <div><dt>Yontem</dt><dd>{{ profile.methodology }}</dd></div>
+    {% endif %}
+    {% if profile.instruments %}
+      <div><dt>Enstrumanlar</dt><dd>{{ profile.instruments }}</dd></div>
+    {% endif %}
+    {% if profile.timeframes %}
+      <div><dt>Zaman dilimleri</dt><dd>{{ profile.timeframes }}</dd></div>
+    {% endif %}
+    {% if profile.typical_setups %}
+      <div><dt>Tipik kurulumlar</dt><dd>{{ profile.typical_setups }}</dd></div>
+    {% endif %}
+    {% if profile.risk_style %}
+      <div><dt>Risk yonetimi</dt><dd>{{ profile.risk_style }}</dd></div>
+    {% endif %}
+    {% if profile.strengths %}
+      <div><dt>Gucu</dt><dd>{{ profile.strengths }}</dd></div>
+    {% endif %}
+    {% if profile.cautions %}
+      <div><dt>Dikkat</dt><dd>{{ profile.cautions }}</dd></div>
+    {% endif %}
+  </dl>
+
+  <p class="stamp">
+    {{ profile.sample_size }} icerikten cikarildi
+    {% if profile.updated_at %} &middot; {{ profile.updated_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}
+  </p>
 </div>
+{% endif %}
 
 {% if not contents %}
-  <div class="card empty">Henuz icerik cekilmemis.</div>
+  <div class="empty">Henuz icerik cekilmemis.</div>
 {% else %}
   {% for c in contents %}
-  <div class="card">
-    {# --- video basligi --- #}
-    <div class="video-header">
+  <section class="box">
+
+    <div class="box-head">
       <div>
         <h2>
           {% if c.url %}
-            <a href="{{ c.url }}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none;">
-              {{ c.title }}
-            </a>
-          {% else %}
-            {{ c.title }}
-          {% endif %}
+            <a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.title }}</a>
+          {% else %}{{ c.title }}{% endif %}
         </h2>
         <div class="meta">
           {% if c.published_at %}
-            Yayinlanma: {{ c.published_at.strftime('%d.%m.%Y') }}
+            <span>Yayin: {{ c.published_at.strftime('%d.%m.%Y') }}</span>
           {% else %}
-            Cekilme: {{ c.fetched_at.strftime('%d.%m.%Y') if c.fetched_at else '—' }}
+            <span>Cekilme: {{ c.fetched_at.strftime('%d.%m.%Y') if c.fetched_at else '—' }}</span>
           {% endif %}
-          &nbsp;·&nbsp;
-          <span class="badge">{{ c.source_type }}</span>
+          <span class="chip">{{ c.source_type }}</span>
+          {% if c.post_kind %}<span class="chip">{{ c.post_kind }}</span>{% endif %}
+          {% if c.engagement %}<span class="chip">{{ c.engagement }} etkilesim</span>{% endif %}
           {% if not c.analyzed %}
-            &nbsp;<span class="badge" style="color:var(--yellow);border-color:rgba(251,191,36,.4);">henuz analiz edilmedi</span>
+            <span class="chip chip-neutral">analiz bekliyor</span>
           {% endif %}
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         {% if c.url %}<a href="{{ c.url }}" class="btn" target="_blank" rel="noopener">Kaynak &nearr;</a>{% endif %}
-        <a href="/content/{{ c.id }}" class="btn">Transkript</a>
+        <a href="/content/{{ c.id }}" class="btn btn-primary">Transkript &rarr;</a>
       </div>
     </div>
 
-    {# --- makro kurallar --- #}
-    {% if c.rules %}
-    <div class="section-header">
-      <h3>Kurallar</h3>
-      <span class="badge">{{ c.rules|length }}</span>
-    </div>
-    <ul class="inference-list">
-      {% for r in c.rules %}
-      <li>
-        <div class="header">
-          <span style="font-size:13px;font-weight:600;">
-            EGER <em>{{ r.condition }}</em>
-            &rarr; <strong>{{ r.effect_asset }}</strong>
-          </span>
-          <span class="badge badge-{{ r.effect_direction }}">
-            {{ direction_label(r.effect_direction) }}
-          </span>
-          {{ confidence_bar(r.confidence) }}
-          {{ render_ts(c.url, c.source_type, r.source_timestamp_sec, r.quote) }}
-        </div>
-        {% if r.rationale %}
-          <div class="body">{{ r.rationale }}</div>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+    <div class="box-body">
 
-    {# --- projeksiyonlar --- #}
-    {% if c.projections %}
-    <div class="section-header">
-      <h3>Projeksiyonlar</h3>
-      <span class="badge">{{ c.projections|length }}</span>
-    </div>
-    <ul class="inference-list">
-      {% for p in c.projections %}
-      <li>
-        <div class="header">
-          <strong>{{ p.asset }}</strong>
-          {% if p.direction %}<span class="badge badge-{{ p.direction }}">{{ direction_label(p.direction) }}</span>{% endif %}
-          {% if p.horizon %}<span class="badge">{{ p.horizon }}</span>{% endif %}
-          {% if p.price_target is not none %}
-            <span class="badge" style="color:var(--accent);border-color:rgba(79,142,247,.4);">
-              Hedef: {{ "%.4g"|format(p.price_target) }}
-            </span>
-          {% endif %}
-          {{ confidence_bar(p.confidence) }}
-          {{ render_ts(c.url, c.source_type, p.source_timestamp_sec, p.quote) }}
+      {# ---------- kurallar ---------- #}
+      {% if c.rules %}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Kurallar</span>
+          <span class="count">{{ c.rules|length }}</span>
         </div>
-        {% if p.scenario %}
-          <div class="body">{{ p.scenario }}</div>
-        {% endif %}
-        {% if p.conditions %}
-          <div class="body" style="margin-top:4px;font-size:12px;">
-            <em>On kosul:</em> {{ p.conditions }}
-          </div>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+        <ul class="rows">
+          {% for r in c.rules %}
+          <li class="row{% if r.rule_class == 'live' %} is-live{% endif %}">
+            <div class="stmt">
+              <span class="if-tag">EGER</span>
+              <span class="cond">{{ r.condition }}</span>
+              <span class="arrow">&rarr;</span>
+              <span class="then">
+                {{ m.targets(r.effect_asset, r.effect_sector, split_tickers(r.effect_tickers)) }}
+                <span class="chip chip-{{ r.effect_direction }}">{{ direction_label(r.effect_direction) }}</span>
+                {{ class_chip(r.rule_class) }}
+              </span>
+            </div>
+            <div class="tail">
+              {{ m.progress(r.progress_score, r.progress_status) }}
+              {{ m.meter(r.confidence) }}
+              {{ m.tslink(ts_link(c.url, c.source_type, r.source_timestamp_sec), fmt_mmss(r.source_timestamp_sec)) }}
+            </div>
+            {% if r.rationale %}<div class="why">{{ r.rationale }}</div>{% endif %}
+            {% if r.quote %}<div class="quote">"{{ r.quote }}"</div>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
-    {# --- islem kurulumlari --- #}
-    {% if c.setups %}
-    <div class="section-header">
-      <h3>Kurulumlar</h3>
-      <span class="badge">{{ c.setups|length }}</span>
-    </div>
-    <ul class="inference-list">
-      {% for s in c.setups %}
-      <li>
-        <div class="header">
-          <strong>{{ s.instrument }}</strong>
-          <span class="badge badge-{{ s.direction }}">{{ direction_label(s.direction) }}</span>
-          {% if s.timeframe %}<span class="badge">{{ s.timeframe }}</span>{% endif %}
-          {% if s.status %}<span class="badge">{{ s.status }}</span>{% endif %}
-          {{ confidence_bar(s.confidence) }}
-          {{ render_ts(c.url, c.source_type, s.source_timestamp_sec, s.quote) }}
+      {# ---------- projeksiyonlar ---------- #}
+      {% if c.projections %}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Projeksiyonlar</span>
+          <span class="count">{{ c.projections|length }}</span>
+          <span class="hint">bu olursa &rarr; su olur</span>
         </div>
-        {% if s.setup_conditions %}
-          <div class="body">{{ s.setup_conditions }}</div>
-        {% endif %}
-        <div class="body" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;">
-          {% if s.entry is not none %}
-            <span>Giris: <strong>{{ "%.4g"|format(s.entry) }}</strong></span>
-          {% endif %}
-          {% if s.stop_loss is not none %}
-            <span>SL: <strong style="color:var(--red);">{{ "%.4g"|format(s.stop_loss) }}</strong></span>
-          {% endif %}
-          {% if s.take_profit %}
-            <span>TP: <strong style="color:var(--green);">{{ s.take_profit }}</strong></span>
-          {% endif %}
-          {% if s.rr is not none %}
-            <span>R/R: <strong>{{ "%.2f"|format(s.rr) }}</strong></span>
-          {% endif %}
-        </div>
-        {% if s.rationale %}
-          <div class="body" style="margin-top:4px;font-size:12px;">{{ s.rationale }}</div>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+        <ul class="rows">
+          {% for p in c.projections %}
+          <li class="row">
+            <div class="stmt">
+              {% if p.conditions %}
+                <span class="if-tag">EGER</span>
+                <span class="cond">{{ p.conditions }}</span>
+                <span class="arrow">&rarr;</span>
+              {% endif %}
+              <span class="then">
+                <span class="cond">{{ p.scenario }}</span>
+                {{ m.targets(p.asset, p.sector, split_tickers(p.tickers)) }}
+                {% if p.direction %}
+                  <span class="chip chip-{{ p.direction }}">{{ direction_label(p.direction) }}</span>
+                {% endif %}
+                {% if p.price_target is not none %}
+                  <span class="chip chip-target">{{ "%.4g"|format(p.price_target) }}</span>
+                {% endif %}
+                {% if p.horizon %}<span class="chip">{{ p.horizon }}</span>{% endif %}
+              </span>
+            </div>
+            <div class="tail">
+              {{ m.progress(p.progress_score, p.progress_status) }}
+              {{ m.meter(p.confidence) }}
+              {{ m.tslink(ts_link(c.url, c.source_type, p.source_timestamp_sec), fmt_mmss(p.source_timestamp_sec)) }}
+            </div>
+            {% if p.quote %}<div class="quote">"{{ p.quote }}"</div>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
-    {% if not c.rules and not c.projections and not c.setups %}
-      <p class="empty">Bu icerik icin henuz cikarim yok.</p>
-    {% endif %}
-  </div>
+      {# ---------- islem kurulumlari ---------- #}
+      {% if c.setups %}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Kurulumlar</span>
+          <span class="count">{{ c.setups|length }}</span>
+        </div>
+        <ul class="rows">
+          {% for s in c.setups %}
+          <li class="row">
+            <div class="stmt">
+              <span class="then">
+                <span class="code">{{ s.instrument }}</span>
+                <span class="chip chip-{{ s.direction }}">{{ direction_label(s.direction) }}</span>
+                {% if s.timeframe %}<span class="chip">{{ s.timeframe }}</span>{% endif %}
+                {% if s.status %}<span class="chip">{{ s.status }}</span>{% endif %}
+                {% if s.setup_conditions %}<span class="cond">{{ s.setup_conditions }}</span>{% endif %}
+              </span>
+            </div>
+            <div class="tail">
+              {{ m.meter(s.confidence) }}
+              {{ m.tslink(ts_link(c.url, c.source_type, s.source_timestamp_sec), fmt_mmss(s.source_timestamp_sec)) }}
+            </div>
+            <div class="why" style="display:flex;flex-wrap:wrap;gap:12px;">
+              {% if s.entry is not none %}<span>Giris <b>{{ "%.4g"|format(s.entry) }}</b></span>{% endif %}
+              {% if s.stop_loss is not none %}<span>SL <b style="color:var(--down);">{{ "%.4g"|format(s.stop_loss) }}</b></span>{% endif %}
+              {% if s.take_profit %}<span>TP <b style="color:var(--up);">{{ s.take_profit }}</b></span>{% endif %}
+              {% if s.rr is not none %}<span>R/R <b>{{ "%.2f"|format(s.rr) }}</b></span>{% endif %}
+            </div>
+            {% if s.rationale %}<div class="why">{{ s.rationale }}</div>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if not c.rules and not c.projections and not c.setups %}
+        <div class="group"><div class="empty">Bu icerik icin henuz cikarim yok.</div></div>
+      {% endif %}
+
+    </div>
+  </section>
   {% endfor %}
 {% endif %}
 {% endblock %}

@@ -8,18 +8,30 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
 
-from finorch.analysis import extract_macro, extract_setups
+from sqlalchemy import func, select
+
+from finorch.analysis import build_profile, extract_macro, extract_setups, extract_watches
 from finorch.conditions import (
     evaluate_macro_rule,
     evaluate_projection,
     evaluate_trade_setup,
 )
+from finorch.conditions.watch import evaluate_all as evaluate_all_watches
+from finorch.conditions.watch import expire_stale
 from finorch.analysis.vision import describe_image
 from finorch.config import settings
-from finorch.db import Analyst, ContentMedia, RawContent, Source, get_session
-from finorch.db.models import Alert, MacroRule, Projection, TradeSetup, TranscriptSegment
+from finorch.db import Analyst, AnalystProfile, ContentMedia, RawContent, Source, get_session
+from finorch.db.models import (
+    Alert,
+    MacroRule,
+    PriceWatch,
+    Projection,
+    TradeSetup,
+    TranscriptSegment,
+)
+from finorch.market import get_history, refresh_quotes, resolve_symbol
 from finorch.media import extract_scene_frames
 from finorch.notify import send_message
 from finorch.ingestion import get_ingestor
@@ -28,6 +40,9 @@ from finorch.transcription import transcribe_url
 
 _VIDEO_SOURCES = {"youtube", "web"}
 _TECHNICAL_TYPES = {"technical", "mixed"}
+
+# Profil cikarimi icin okunacak en fazla icerik sayisi (maliyet siniri)
+_PROFILE_SAMPLE_SIZE = 12
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +135,14 @@ def run_ingestion(limit_per_source: int = 5, whisper_for_missing: bool = True) -
                     analyzed=False,
                     has_media=has_media,
                     vision_processed=not has_media,
+                    post_kind=it.post_kind,
+                    author_handle=it.author_handle,
+                    quoted_text=it.quoted_text,
+                    conversation_id=it.conversation_id,
+                    like_count=it.like_count,
+                    repost_count=it.repost_count,
+                    reply_count=it.reply_count,
+                    view_count=it.view_count,
                 )
                 session.add(content)
                 session.flush()
@@ -232,12 +255,17 @@ def run_vision(max_items: int = 10) -> int:
             media_targets = [(m.id, m.url, m.local_path) for m in media]
 
         for media_id, murl, mpath in media_targets:
-            text = describe_image(murl or mpath)
-            if text:
-                with get_session() as session:
-                    m = session.get(ContentMedia, media_id)
-                    if m:
-                        m.vision_text = text
+            reading = describe_image(murl or mpath)
+            summary = reading.as_text()
+            if not summary:
+                continue
+            with get_session() as session:
+                m = session.get(ContentMedia, media_id)
+                if m:
+                    m.vision_text = summary
+                    m.is_chart = reading.is_chart
+                    m.chart_symbol = reading.symbol
+                    m.chart_timeframe = reading.timeframe
 
         with get_session() as session:
             c = session.get(RawContent, content_id)
@@ -275,9 +303,15 @@ def _content_text(session, c: RawContent) -> str:
     if c.text:
         parts.append(c.text)
 
-    vision_bits = [m.vision_text for m in (c.media or []) if m.vision_text]
+    # Alintilanan gonderi olmadan analistin yorumu baglamsiz kalir
+    # ("bu tam da bekledigim seydi" -> neyi bekledigi alintida yaziyor)
+    if c.quoted_text:
+        parts.append(f"[Alintilanan gonderi]\n{c.quoted_text}")
+
+    # Sadece gercek grafikler analize girer; mem/selfie aciklamasi LLM'i yaniltir
+    vision_bits = [m.vision_text for m in (c.media or []) if m.vision_text and m.is_chart]
     if vision_bits:
-        parts.append("[Gorsellerden okunan]\n" + "\n".join(vision_bits))
+        parts.append("[Grafiklerden okunan]\n" + "\n".join(vision_bits))
     return "\n".join(p for p in parts if p).strip()
 
 
@@ -293,6 +327,7 @@ def _analyze_macro(session, content_id: int, text: str, focus: str) -> None:
         session.add(obj)
         session.flush()
         evaluate_projection(session, obj)
+        _watch_from_projection(session, content_id, obj)
 
 
 def _analyze_technical(session, content_id: int, text: str, focus: str) -> None:
@@ -302,6 +337,73 @@ def _analyze_technical(session, content_id: int, text: str, focus: str) -> None:
         session.add(obj)
         session.flush()
         evaluate_trade_setup(session, obj)
+
+
+def _analyze_watches(session, content_id: int, text: str, focus: str) -> None:
+    """Takip edilebilir fiyat kosullarini cikarip izlemeye alir."""
+    extraction = extract_watches(text, focus=focus)
+    for w in extraction.watches:
+        payload = _with_analyst(session, content_id, w)
+        _add_watch(session, content_id, symbol=resolve_symbol(w["instrument"]), **payload)
+
+
+def _watch_from_projection(session, content_id: int, proj: Projection) -> None:
+    """Fiyat hedefi tasiyan makro projeksiyonu izlenebilir bir hedefe cevirir.
+
+    Makro analistler de somut hedef verir ("dolar yil sonu 45"). Bu hedefler ayri bir
+    LLM cagrisi yapilmadan, zaten cikarilmis projeksiyondan izlemeye alinir.
+    """
+    if proj.price_target is None:
+        return
+    instrument = proj.asset or proj.tickers.split(",")[0].strip()
+    symbol = resolve_symbol(instrument)
+    if not symbol:
+        return
+
+    _add_watch(
+        session,
+        content_id,
+        analyst_id=proj.analyst_id,
+        instrument=instrument,
+        symbol=symbol,
+        direction={"up": "long", "down": "short"}.get(proj.direction, "neutral"),
+        trigger_type="target",
+        trigger_price=proj.price_target,
+        structure=proj.conditions,
+        action=proj.scenario,
+        rationale=proj.horizon,
+        confidence=proj.confidence,
+        quote=proj.quote,
+        source_timestamp_sec=proj.source_timestamp_sec,
+    )
+
+
+def _add_watch(session, content_id: int, **fields) -> PriceWatch | None:
+    """Izleme kaydi ekler; ayni icerikte ayni tetik zaten varsa atlar."""
+    symbol = fields.get("symbol") or ""
+    trigger_price = fields.get("trigger_price")
+    duplicate = session.scalar(
+        select(PriceWatch).where(
+            PriceWatch.content_id == content_id,
+            PriceWatch.symbol == symbol,
+            PriceWatch.trigger_type == fields.get("trigger_type", ""),
+            PriceWatch.trigger_price.is_(None)
+            if trigger_price is None
+            else PriceWatch.trigger_price == trigger_price,
+        )
+    )
+    if duplicate:
+        return None
+
+    watch = PriceWatch(
+        content_id=content_id,
+        status="watching" if symbol else "unresolved",
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.watch_expire_days),
+        **fields,
+    )
+    session.add(watch)
+    session.flush()
+    return watch
 
 
 def _with_analyst(session, content_id: int, payload: dict) -> dict:
@@ -344,12 +446,121 @@ def run_analysis(max_items: int = 20) -> int:
             if text:
                 if profile_type in ("macro", "mixed"):
                     _analyze_macro(session, content_id, text, focus)
-                if profile_type in ("technical", "mixed"):
+                if profile_type in _TECHNICAL_TYPES:
                     _analyze_technical(session, content_id, text, focus)
+                    # Makro hesaplarda fiyat hedefleri zaten projeksiyondan turetiliyor;
+                    # ayri bir LLM cagrisi sadece teknik hesaplar icin yapilir.
+                    _analyze_watches(session, content_id, text, focus)
             c.analyzed = True
             analyzed += 1
     logger.info("Analiz tamam: %d icerik islendi.", analyzed)
     return analyzed
+
+
+def run_watches() -> int:
+    """Takipteki fiyat kosullarini guncel piyasa verisiyle degerlendirir.
+
+    Tetiklenen kosullar icin uyari uretilir; gonderim `send_pending_alerts` ile olur.
+    """
+    if not settings.market_enabled:
+        return 0
+
+    with get_session() as session:
+        expired = expire_stale(session)
+        alerts = evaluate_all_watches(session)
+        triggered = len(alerts)
+        symbols = {
+            w.symbol
+            for w in session.scalars(
+                select(PriceWatch).where(PriceWatch.status == "watching")
+            ).all()
+            if w.symbol
+        }
+
+    # Grafik verisini burada tazeleriz ki dashboard bir web istegi sirasinda
+    # yfinance'i beklemek zorunda kalmasin.
+    for symbol in symbols:
+        get_history(symbol)
+
+    if triggered or expired:
+        logger.info("Izleme tamam: %d tetiklendi, %d suresi doldu.", triggered, expired)
+    return triggered
+
+
+def run_ticker() -> int:
+    """Dashboard ustundeki piyasa seridini tazeler.
+
+    Boru hattinin geri kalanindan bagimsizdir ve cok daha sik calisir; scheduler
+    bunu ayri bir is olarak zamanlar.
+    """
+    try:
+        return refresh_quotes()
+    except Exception as e:
+        logger.error("Piyasa seridi guncellenemedi: %s", e)
+        return 0
+
+
+def run_profiles(force: bool = False, min_new_contents: int = 3) -> int:
+    """Analistlerin yontem profillerini (yeniden) uretir.
+
+    Her calistirmada tum analistleri LLM'e sokmak pahali oldugu icin, profil
+    yalnizca hic yoksa veya son uretimden bu yana yeterince yeni icerik geldiyse
+    yenilenir. `force=True` bu kontrolu atlar.
+    """
+    built = 0
+    with get_session() as session:
+        analyst_ids = [a.id for a in session.scalars(select(Analyst)).all()]
+
+    for analyst_id in analyst_ids:
+        with get_session() as session:
+            analyst = session.get(Analyst, analyst_id)
+            if not analyst:
+                continue
+            profile = session.scalar(
+                select(AnalystProfile).where(AnalystProfile.analyst_id == analyst_id)
+            )
+            total = session.scalar(
+                select(func.count())
+                .select_from(RawContent)
+                .where(RawContent.analyst_id == analyst_id, RawContent.analyzed.is_(True))
+            ) or 0
+            if not total:
+                continue
+            if profile and not force and (total - profile.sample_size) < min_new_contents:
+                continue
+
+            contents = session.scalars(
+                select(RawContent)
+                .where(RawContent.analyst_id == analyst_id, RawContent.analyzed.is_(True))
+                .order_by(
+                    RawContent.published_at.desc().nulls_last(),
+                    RawContent.fetched_at.desc(),
+                )
+                .limit(_PROFILE_SAMPLE_SIZE)
+            ).all()
+            samples = [_content_text(session, c) for c in contents]
+            name, focus = analyst.name, analyst.focus
+
+        result = build_profile(samples, analyst_name=name, focus=focus)
+        if result.is_empty:
+            continue
+
+        with get_session() as session:
+            profile = session.scalar(
+                select(AnalystProfile).where(AnalystProfile.analyst_id == analyst_id)
+            )
+            if not profile:
+                profile = AnalystProfile(analyst_id=analyst_id)
+                session.add(profile)
+            for key, value in result.as_dict().items():
+                setattr(profile, key, value)
+            profile.sample_size = total
+            profile.updated_at = datetime.now(timezone.utc)
+        built += 1
+
+    if built:
+        logger.info("Profil tamam: %d analist guncellendi.", built)
+    return built
 
 
 def send_pending_alerts() -> int:
@@ -380,6 +591,8 @@ def run_once() -> dict:
         "transcribed": run_transcription(),
         "vision": run_vision(),
         "analyzed": run_analysis(),
+        "triggered": run_watches(),
+        "profiles": run_profiles(),
         "alerts_sent": send_pending_alerts(),
     }
     logger.info("Dongu tamamlandi: %s", result)

@@ -14,6 +14,11 @@
 #   - youtube : kanal url'si veya @handle
 #   - x       : X/Twitter kullanici adi (@ olmadan)
 #   - web     : RSS/Atom feed url'si veya video iceren sayfa url'si
+#
+# X kaynaklarinda repost'lar (baskasinin gonderileri) varsayilan olarak elenir ve
+# ayni thread'deki gonderiler tek icerige birlestirilir (.env'deki X_* ayarlari).
+# Bir hesabi listeye eklemeden once "finorch x-preview <kullanici_adi>" ile
+# ne kadarinin kendi analizi oldugunu gorebilirsiniz.
 
 analysts:
   # --- Makro / anlati hesabi ornegi ---
@@ -28,11 +33,16 @@ analysts:
         ref: "makro_kullanici"
 
   # --- Teknik analiz hesabi ornegi ---
+  # Teknik hesaplarda ayrica "fiyat kosullari" cikarilir: analistin
+  # "3.250 uzerinde kapanis gorursem alirim" dedigi seviyeler izlemeye alinir ve
+  # canli fiyatla karsilastirilir (dashboard'da "Fiyat izlemeleri" sayfasi).
   - name: "Teknik Analist"
     type: technical
     language: "tr"
     focus: "SMC/ICT; FVG, MSB, order block, likidite; entry/SL/TP ve RR"
     sources:
+      - type: x
+        ref: "teknik_kullanici"
       - type: youtube
         ref: "https://www.youtube.com/@teknik_kanal"
       - type: web

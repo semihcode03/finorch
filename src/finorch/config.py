@@ -43,6 +43,39 @@ class Settings(BaseSettings):
     x_auth_token: str = ""
     x_ct0: str = ""
     x_username: str = ""
+    # Ana sayfada baskasinin paylasimlari (retweet) da cikar; varsayilan olarak elenir
+    # cunku hedef analistin KENDI gorusunu ogrenmek.
+    x_include_reposts: bool = False
+    # Baskasina verilen kisa cevaplar genelde analiz icermez
+    x_include_replies: bool = False
+    # Bu esigin altinda etkilesim alan gonderiler atlanir (0 = filtre yok)
+    x_min_engagement: int = 0
+    # Ayni konusma zincirindeki (thread) gonderileri tek icerik olarak birlestir
+    x_stitch_threads: bool = True
+
+    # Piyasa verisi (Faz 2: canli fiyat + kosul takibi)
+    market_enabled: bool = True
+    # Fiyat sorgusu onbellek suresi (saniye); ayni sembol tekrar tekrar cekilmesin
+    market_cache_ttl_sec: int = 300
+    # Gecmis mumlar bu sure boyunca tazelenmez (saat)
+    market_history_ttl_hours: int = 6
+    # Kosulun "yaklasma" bandi (%): tetik fiyatina bu kadar uzaklik progress=0 sayilir
+    watch_band_pct: float = 10.0
+    # Bu kadar gun sonra tetiklenmemis izlemeler "expired" olur
+    watch_expire_days: int = 90
+    # BIST sembolleri icin Yahoo Finance soneki
+    bist_suffix: str = ".IS"
+
+    # Piyasa seridi (dashboard ustundeki kayan bant)
+    ticker_enabled: bool = True
+    # Seritteki semboller. Bos birakilirsa market/ticker.py'daki varsayilan liste
+    # kullanilir. Bicim: "sembol|etiket" ciftleri, virgulle ayrilmis.
+    # Ornek: "XU100.IS|BIST 100,USDTRY=X|USD/TRY,GRAMALTIN|Gram Altin"
+    ticker_symbols: str = ""
+    # Serit verisi kac dakikada bir tazelensin (scheduler isi)
+    ticker_refresh_minutes: int = 5
+    # Tarayici seridi kac saniyede bir yeniden ceksin
+    ticker_poll_seconds: int = 60
 
     # Genel
     data_dir: Path = Path("./data")

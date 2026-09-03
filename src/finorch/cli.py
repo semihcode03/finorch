@@ -121,8 +121,10 @@ def ingest(limit: int = typer.Option(5, help="Kaynak basina cekilecek icerik say
     from finorch.pipeline import (
         run_analysis,
         run_ingestion,
+        run_profiles,
         run_transcription,
         run_vision,
+        run_watches,
         send_pending_alerts,
     )
 
@@ -130,6 +132,8 @@ def ingest(limit: int = typer.Option(5, help="Kaynak basina cekilecek icerik say
     run_transcription()
     run_vision()
     run_analysis()
+    run_watches()
+    run_profiles()
     send_pending_alerts()
     console.print("[green]Tek seferlik dongu tamamlandi.[/green]")
 
@@ -148,6 +152,7 @@ def backfill(
     from finorch.pipeline import (
         run_analysis,
         run_ingestion,
+        run_profiles,
         run_transcription,
         run_vision,
         send_pending_alerts,
@@ -159,8 +164,205 @@ def backfill(
     run_transcription(max_items=limit)
     run_vision(max_items=limit)
     run_analysis(max_items=limit)
+    run_profiles(force=True)
+    # Gecmis icerikten cikan kosullar toplu uyari yagmuruna donmesin diye
+    # backfill'de fiyat kontrolu calistirilmaz; sonra "finorch watch" ile yapilir.
     send_pending_alerts()
     console.print("[green]Backfill tamamlandi.[/green]")
+
+
+@app.command("x-preview")
+def x_preview(
+    handle: str = typer.Argument(..., help="X kullanici adi (@ ile veya @ olmadan)"),
+    limit: int = typer.Option(20, help="Incelenecek son gonderi sayisi"),
+    analyze: bool = typer.Option(
+        False, "--analyze", help="Ornek gonderilerde LLM cikarimi da dene (OpenAI maliyeti olusur)"
+    ),
+) -> None:
+    """Bir X hesabini DB'ye yazmadan on inceler.
+
+    Hesabin ne kadarinin kendi analizi, ne kadarinin repost oldugunu; kac gonderide
+    grafik bulundugunu ve tipik icerik uslubunu gosterir. Analist listesine eklemeden
+    once hesabin takibe deger olup olmadigina karar vermek icin.
+    """
+    from finorch.ingestion.x import XIngestor, keep_item, skip_reason, stitch_threads
+
+    ingestor = XIngestor()
+    ok, note = ingestor.healthcheck()
+    if not ok:
+        console.print(f"[red]X kaynagi hazir degil:[/red] {note}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[cyan]@{handle.lstrip('@')} inceleniyor (son {limit} gonderi)...[/cyan]")
+    items = ingestor.collect(handle, limit=limit)
+    if not items:
+        console.print("[yellow]Hic gonderi cekilemedi. Cookie'ler gecerli mi?[/yellow]")
+        raise typer.Exit(code=1)
+
+    # --- tur dagilimi ---
+    kinds: dict[str, int] = {}
+    for it in items:
+        kinds[it.post_kind] = kinds.get(it.post_kind, 0) + 1
+
+    labels = {
+        "original": "Kendi gonderisi",
+        "thread": "Thread parcasi",
+        "quote": "Alintili yorum",
+        "repost": "Repost (baskasinin)",
+        "reply": "Baskasina cevap",
+    }
+    dist = Table(title=f"@{handle.lstrip('@')} - icerik dagilimi")
+    dist.add_column("Tur")
+    dist.add_column("Adet", justify="right")
+    dist.add_column("Oran", justify="right")
+    for kind, count in sorted(kinds.items(), key=lambda kv: -kv[1]):
+        dist.add_row(labels.get(kind, kind), str(count), f"%{count / len(items) * 100:.0f}")
+    console.print(dist)
+
+    stitched = stitch_threads(items)
+    kept = [it for it in stitched if keep_item(it)]
+    with_charts = [it for it in kept if it.media_urls]
+
+    console.print(
+        f"\n[bold]{len(items)}[/bold] gonderi -> thread birlestirme sonrasi "
+        f"[bold]{len(stitched)}[/bold] icerik -> filtreden gecen "
+        f"[bold green]{len(kept)}[/bold green] (gorselli: {len(with_charts)})"
+    )
+
+    # --- elenenler ve gerekceleri ---
+    dropped = [(it, skip_reason(it)) for it in stitched if not keep_item(it)]
+    if dropped:
+        reasons: dict[str, int] = {}
+        for _, reason in dropped:
+            reasons[reason] = reasons.get(reason, 0) + 1
+        console.print(
+            "[dim]Elenenler: "
+            + ", ".join(f"{reason} x{count}" for reason, count in reasons.items())
+            + "[/dim]"
+        )
+
+    # --- ornek icerikler ---
+    sample = Table(title="Analiz edilecek ornekler")
+    sample.add_column("Tarih", no_wrap=True)
+    sample.add_column("Tur", no_wrap=True)
+    sample.add_column("Etkilesim", justify="right", no_wrap=True)
+    sample.add_column("Gorsel", justify="right", no_wrap=True)
+    sample.add_column("Metin")
+    for it in kept[:10]:
+        date = it.published_at.strftime("%d.%m.%Y") if it.published_at else "-"
+        preview = " ".join(it.text.split())[:90]
+        sample.add_row(
+            date,
+            labels.get(it.post_kind, it.post_kind),
+            str(it.engagement),
+            str(len(it.media_urls)),
+            preview or "[dim](sadece gorsel)[/dim]",
+        )
+    console.print(sample)
+
+    if not analyze:
+        console.print(
+            "\n[dim]Cikarimi da gormek icin: "
+            f"finorch x-preview {handle} --analyze[/dim]"
+        )
+        return
+
+    _preview_extraction(kept[:5])
+
+
+def _preview_extraction(items: list) -> None:
+    """On incelemede ornek gonderilerde grafik okuma + kosul cikarimini dener."""
+    from finorch.analysis.vision import describe_image
+    from finorch.analysis.watch import extract_watches
+
+    console.print("\n[cyan]Ornek gonderilerde cikarim deneniyor...[/cyan]")
+    found = 0
+    for it in items:
+        text = it.text
+        charts = 0
+        for url in it.media_urls[:2]:
+            reading = describe_image(url)
+            if reading.is_chart:
+                charts += 1
+                text = f"{text}\n[Grafikten okunan] {reading.as_text()}"
+
+        watches = extract_watches(text).watches
+        if not watches:
+            continue
+        found += len(watches)
+        console.print(f"\n[bold]{' '.join(it.text.split())[:70]}[/bold] (grafik: {charts})")
+        for w in watches:
+            level = f"{w['trigger_price']:g}" if w["trigger_price"] is not None else "seviye yok"
+            console.print(
+                f"  → [green]{w['instrument']}[/green] {w['trigger_type']} @ {level} "
+                f"[{w['direction']}] {w['structure'] or w['action']}"
+            )
+
+    if not found:
+        console.print(
+            "[yellow]Ornek gonderilerde takip edilebilir fiyat kosulu bulunamadi.[/yellow] "
+            "Hesap seviye vermeyen bir yorumcu olabilir; daha fazla gonderi deneyin."
+        )
+
+
+@app.command()
+def watch(
+    once: bool = typer.Option(True, help="Tek seferlik kontrol (varsayilan)"),
+) -> None:
+    """Takipteki fiyat kosullarini guncel piyasa verisiyle kontrol eder."""
+    from finorch.pipeline import run_watches, send_pending_alerts
+
+    triggered = run_watches()
+    sent = send_pending_alerts() if once else 0
+    console.print(
+        f"[green]Kontrol tamam.[/green] Tetiklenen: {triggered}, gonderilen uyari: {sent}"
+    )
+
+
+@app.command()
+def ticker() -> None:
+    """Dashboard ustundeki piyasa seridini tazeler (endeks/doviz/emtia/kripto)."""
+    from finorch.market.ticker import load_quotes
+    from finorch.pipeline import run_ticker
+
+    count = run_ticker()
+    if not count:
+        console.print(
+            "[yellow]Hicbir kotasyon alinamadi.[/yellow] "
+            "MARKET_ENABLED / TICKER_ENABLED ayarlarini ve ag erisimini kontrol edin."
+        )
+        return
+
+    table = Table(title="Piyasa seridi")
+    table.add_column("Sembol")
+    table.add_column("Deger", justify="right")
+    table.add_column("Degisim", justify="right")
+    for q in load_quotes():
+        pct = q["change_pct"]
+        if pct is None:
+            change = "—"
+        else:
+            color = "green" if pct >= 0 else "red"
+            change = f"[{color}]{pct:+.2f}%[/{color}]"
+        table.add_row(q["label"], f"{q['price']:,.2f}" if q["price"] else "—", change)
+    console.print(table)
+
+
+@app.command()
+def profile(
+    force: bool = typer.Option(False, "--force", help="Yeni icerik olmasa da yeniden uret"),
+) -> None:
+    """Analistlerin yontem profillerini (nasil dusunduklerini) cikarir."""
+    from finorch.pipeline import run_profiles
+
+    built = run_profiles(force=force)
+    if built:
+        console.print(f"[green]{built} analist profili guncellendi.[/green]")
+    else:
+        console.print(
+            "[yellow]Guncellenecek profil yok.[/yellow] "
+            "Yeni icerik gelmemis olabilir; --force ile zorlayabilirsiniz."
+        )
 
 
 @app.command()

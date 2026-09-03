@@ -1,44 +1,171 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Analistler — Financial Orchestrator{% endblock %}
 
+{# Bir nedensel kural satiri: EGER <kosul> -> <endeks/sektor/hisse> <yon> #}
+{% macro rule_row(r, live=False) %}
+<li class="row{% if live %} is-live{% endif %}">
+  <div class="stmt">
+    <span class="if-tag">EGER</span>
+    <span class="cond">{{ r.condition }}</span>
+    <span class="arrow">&rarr;</span>
+    <span class="then">
+      {{ m.targets(r.asset, r.sector, r.tickers) }}
+      <span class="chip chip-{{ r.direction }}">{{ direction_label(r.direction) }}</span>
+    </span>
+  </div>
+  <div class="tail">
+    {{ m.progress(r.progress_score, r.progress_status) }}
+    {{ m.meter(r.confidence) }}
+    {{ m.tslink(r.ts_url, r.ts_label) }}
+  </div>
+  {% if r.rationale %}<div class="why">{{ r.rationale }}</div>{% endif %}
+</li>
+{% endmacro %}
+
+{# Bir projeksiyon satiri: EGER <bu olursa> -> <su olur> #}
+{% macro projection_row(p) %}
+<li class="row">
+  <div class="stmt">
+    {% if p.if_text %}
+      <span class="if-tag">EGER</span>
+      <span class="cond">{{ p.if_text }}</span>
+      <span class="arrow">&rarr;</span>
+    {% endif %}
+    <span class="then">
+      <span class="cond">{{ p.then_text }}</span>
+      {{ m.targets(p.asset, p.sector, p.tickers) }}
+      {% if p.direction %}
+        <span class="chip chip-{{ p.direction }}">{{ direction_label(p.direction) }}</span>
+      {% endif %}
+      {% if p.price_target is not none %}
+        <span class="chip chip-target">{{ "%.4g"|format(p.price_target) }}</span>
+      {% endif %}
+      {% if p.horizon %}<span class="chip">{{ p.horizon }}</span>{% endif %}
+    </span>
+  </div>
+  <div class="tail">
+    {{ m.progress(p.progress_score, p.progress_status) }}
+    {{ m.meter(p.confidence) }}
+    {{ m.tslink(p.ts_url, p.ts_label) }}
+  </div>
+</li>
+{% endmacro %}
+
 {% block content %}
-<h1>Analistler</h1>
-<p style="color:var(--muted);margin-top:4px;margin-bottom:28px;">
-  Takip edilen finansal analistler ve cikarim ozeti
-</p>
+<div class="page-head">
+  <h1>Analistler</h1>
+  <p>Takip edilen analistlerin cikarilmis kurallari ve gelecek projeksiyonlari</p>
+</div>
 
 {% if not analysts %}
-  <div class="card empty">Henuz analist kaydedilmemis. <code>finorch sync-config</code> calistirin.</div>
+  <div class="empty">Henuz analist kaydedilmemis. <code>finorch sync-config</code> calistirin.</div>
 {% else %}
   {% for a in analysts %}
-  <div class="card">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+  <section class="box">
+
+    {# ---------- box basligi ---------- #}
+    <div class="box-head">
       <div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <h2 style="margin:0;">
-            <a href="/analyst/{{ a.id }}" style="color:var(--text);text-decoration:none;">
-              {{ a.name }}
-            </a>
-          </h2>
-          <span class="profile-badge profile-{{ a.profile_type }}">
-            {{ a.profile_type }}
-          </span>
-          <span class="badge">{{ a.language }}</span>
+        <div class="title-row">
+          <h2><a href="/analyst/{{ a.id }}">{{ a.name }}</a></h2>
+          <span class="profile-badge profile-{{ a.profile_type }}">{{ a.profile_type }}</span>
+          <span class="chip">{{ a.language }}</span>
         </div>
-        {% if a.focus %}
-          <p style="color:var(--muted);font-size:13px;max-width:600px;">{{ a.focus }}</p>
+        {% if a.focus %}<p class="sub">{{ a.focus }}</p>{% endif %}
+        {% if a.latest_title %}
+          <p class="sub" style="margin-top:5px;">
+            <span class="label">Son icerik</span>
+            {{ a.latest_title|truncate(72) }}
+            {% if a.latest_date %}
+              &middot; {{ a.latest_date.strftime('%d.%m.%Y') }}
+            {% endif %}
+          </p>
+        {% endif %}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px;">
+        <div class="stats">
+          <span class="stat">Icerik <b>{{ a.video_count }}</b></span>
+          <span class="stat">Kural <b>{{ a.rule_count }}</b></span>
+          <span class="stat">Projeksiyon <b>{{ a.proj_count }}</b></span>
+          {% if a.setup_count %}<span class="stat">Kurulum <b>{{ a.setup_count }}</b></span>{% endif %}
+          {% if a.watch_count %}
+            <a href="/watches" class="stat" style="text-decoration:none;">Izleme <b>{{ a.watch_count }}</b></a>
+          {% endif %}
+        </div>
+        <a href="/analyst/{{ a.id }}" class="btn btn-primary">Detay &rarr;</a>
+      </div>
+    </div>
+
+    {# ---------- box govdesi ---------- #}
+    <div class="box-body">
+
+      {# --- anlik kurallar: analistin su an soyledikleri --- #}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Anlik kurallar</span>
+          <span class="count">{{ a.live_rules_total }}</span>
+          <span class="hint">son icerikte soylenenler</span>
+        </div>
+        {% if a.live_rules %}
+          <ul class="rows">
+            {% for r in a.live_rules %}{{ rule_row(r, live=True) }}{% endfor %}
+          </ul>
+          {% if a.live_rules_total > a.live_rules|length %}
+            <p class="hint" style="margin-top:8px;font-size:11.5px;color:var(--muted);">
+              {{ a.live_rules_total - a.live_rules|length }} kural daha &middot;
+              <a href="/analyst/{{ a.id }}" style="color:var(--accent);">tumunu gor</a>
+            </p>
+          {% endif %}
+        {% else %}
+          <div class="empty">Son donemde yeni kural cikarilmadi.</div>
         {% endif %}
       </div>
 
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <span class="stat-pill">Videolar <span>{{ a.video_count }}</span></span>
-        <span class="stat-pill">Kurallar <span>{{ a.rule_count }}</span></span>
-        <span class="stat-pill">Projeksiyonlar <span>{{ a.proj_count }}</span></span>
-        <span class="stat-pill">Kurulumlar <span>{{ a.setup_count }}</span></span>
-        <a href="/analyst/{{ a.id }}" class="btn">Detay &rarr;</a>
+      {# --- onemli kurallar: kalici/yapisal mekanizmalar --- #}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Onemli kurallar</span>
+          <span class="count">{{ a.key_rules_total }}</span>
+          <span class="hint">birikmis kalici mekanizmalar</span>
+        </div>
+        {% if a.key_rules %}
+          <ul class="rows">
+            {% for r in a.key_rules %}{{ rule_row(r) }}{% endfor %}
+          </ul>
+          {% if a.key_rules_total > a.key_rules|length %}
+            <p class="hint" style="margin-top:8px;font-size:11.5px;color:var(--muted);">
+              {{ a.key_rules_total - a.key_rules|length }} kural daha &middot;
+              <a href="/analyst/{{ a.id }}" style="color:var(--accent);">tumunu gor</a>
+            </p>
+          {% endif %}
+        {% else %}
+          <div class="empty">Henuz kalici kural cikarilmadi.</div>
+        {% endif %}
       </div>
+
+      {# --- projeksiyonlar --- #}
+      {% if a.projections %}
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Projeksiyonlar</span>
+          <span class="count">{{ a.proj_count }}</span>
+          <span class="hint">bu olursa &rarr; su olur</span>
+        </div>
+        <ul class="rows">
+          {% for p in a.projections %}{{ projection_row(p) }}{% endfor %}
+        </ul>
+        {% if a.proj_count > a.projections|length %}
+          <p class="hint" style="margin-top:8px;font-size:11.5px;color:var(--muted);">
+            {{ a.proj_count - a.projections|length }} projeksiyon daha &middot;
+            <a href="/analyst/{{ a.id }}" style="color:var(--accent);">tumunu gor</a>
+          </p>
+        {% endif %}
+      </div>
+      {% endif %}
+
     </div>
-  </div>
+  </section>
   {% endfor %}
 {% endif %}
 {% endblock %}

@@ -1,0 +1,27 @@
+{# Kayan piyasa seridinin ICERIGI.
+   Sarmalayici (.ticker-track) base.html'de durur ve CSS animasyonu ona baglidir;
+   tarayici tazelerken yalnizca buradaki gruplar degistirilir, boylece kayma
+   kesintiye ugramaz.
+
+   Ayni liste iki kez basilir: ikinci kopya birincinin bittigi yerde devam eder
+   ve animasyon %50'de basa dondugunde gorsel bir sicrama olmaz. #}
+
+{% macro ticker_item(q) %}
+  <span class="tk tk-{{ q.dir }}">
+    <span class="tk-name">{{ q.label }}</span>
+    <span class="tk-price">{{ fmt_price(q.price) }}</span>
+    {% if q.spark_svg %}{{ q.spark_svg }}{% endif %}
+    {% if q.change_pct is not none %}
+      <span class="tk-chg">
+        {{ "%+.2f"|format(q.change) }}
+        <span class="tk-pct">{{ "%+.2f"|format(q.change_pct) }}%</span>
+      </span>
+    {% endif %}
+  </span>
+{% endmacro %}
+
+{% for _ in range(2) %}
+  <div class="ticker-group" {% if not loop.first %}aria-hidden="true"{% endif %}>
+    {% for q in quotes %}{{ ticker_item(q) }}{% endfor %}
+  </div>
+{% endfor %}

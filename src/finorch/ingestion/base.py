@@ -30,6 +30,21 @@ class FetchedItem:
     segments: list[dict] = field(default_factory=list)
     extra: dict = field(default_factory=dict)
 
+    # --- X (Twitter) alanlari; diger kaynaklarda varsayilan kalir ---
+    post_kind: str = ""  # original | repost | quote | reply | thread
+    author_handle: str = ""  # gonderiyi yazan hesap (repost'ta orijinal yazar)
+    quoted_text: str = ""  # alintilanan gonderinin metni
+    conversation_id: str = ""  # thread kimligi
+    like_count: int = 0
+    repost_count: int = 0
+    reply_count: int = 0
+    view_count: int = 0
+
+    @property
+    def engagement(self) -> int:
+        """Gonderinin toplam etkilesimi (esik filtresi icin)."""
+        return self.like_count + self.repost_count + self.reply_count
+
 
 class Ingestor(ABC):
     """Belirli bir kaynak turunu tarayan soyut sinif."""

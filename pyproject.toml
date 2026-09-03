@@ -17,6 +17,7 @@ dependencies = [
     "feedparser>=6.0",
     "yt-dlp>=2024.8.6",
     "twscrape>=0.13",
+    "yfinance>=0.2.40",
     "faster-whisper>=1.0.3",
     "openai>=1.40",
     "tenacity>=8.5",

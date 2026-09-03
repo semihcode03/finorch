@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Fiyat izlemeleri — Financial Orchestrator{% endblock %}
+
+{# Bir izleme satiri: EGER <enstruman> <tetik kosulu> -> <plan> #}
+{% macro watch_row(w, show_price=True) %}
+<li class="row{% if w.status == 'triggered' %} is-hit{% endif %}">
+  <div class="stmt">
+    <span class="if-tag">EGER</span>
+    <span class="code">{{ w.label }}</span>
+    <span class="cond">{{ w.trigger_text }}</span>
+    {% if w.timeframe %}<span class="chip">{{ w.timeframe }}</span>{% endif %}
+    <span class="arrow">&rarr;</span>
+    <span class="then">
+      {% if w.direction != 'neutral' %}
+        <span class="chip chip-{{ w.direction }}">{{ direction_label(w.direction) }}</span>
+      {% endif %}
+      <span class="cond">{{ w.action or w.structure or 'islem' }}</span>
+    </span>
+  </div>
+
+  <div class="tail">
+    {% if show_price %}
+      <span class="live" title="Son fiyat{% if w.last_checked_at %} — {{ w.last_checked_at.strftime('%d.%m %H:%M') }}{% endif %}">
+        {{ w.last_price_text }}
+        {% if w.distance_pct is not none %}
+          <span class="dist {% if w.distance_pct > 0 %}dist-up{% else %}dist-down{% endif %}">
+            {{ "%+.1f"|format(w.distance_pct) }}%
+          </span>
+        {% endif %}
+      </span>
+    {% endif %}
+    {{ m.progress(w.progress_score, w.status) }}
+    {{ m.meter(w.confidence) }}
+  </div>
+
+  {% if w.entry is not none or w.stop_loss is not none or w.take_profit or w.rr is not none %}
+    <div class="why" style="display:flex;flex-wrap:wrap;gap:12px;">
+      {% if w.entry is not none %}<span>Giris <b>{{ fmt_price(w.entry) }}</b></span>{% endif %}
+      {% if w.stop_loss is not none %}<span>SL <b style="color:var(--down);">{{ fmt_price(w.stop_loss) }}</b></span>{% endif %}
+      {% if w.take_profit %}<span>TP <b style="color:var(--up);">{{ w.take_profit }}</b></span>{% endif %}
+      {% if w.rr is not none %}<span>R/R <b>{{ "%.2f"|format(w.rr) }}</b></span>{% endif %}
+    </div>
+  {% endif %}
+
+  <div class="why">
+    <a href="/analyst/{{ w.analyst_id }}" style="color:var(--accent);text-decoration:none;">{{ w.analyst }}</a>
+    {% if w.rationale %} &middot; {{ w.rationale }}{% endif %}
+    &middot; <a href="/content/{{ w.content_id }}" style="color:var(--muted);text-decoration:none;">kaynak</a>
+  </div>
+  {% if w.quote %}<div class="quote">"{{ w.quote }}"</div>{% endif %}
+</li>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Fiyat izlemeleri</h1>
+  <p>Analistlerin "su olursa su yaparim" dedigi kosullar, canli fiyatla karsilastiriliyor</p>
+</div>
+
+{% if not total %}
+  <div class="empty">
+    Henuz izlemeye alinmis fiyat kosulu yok.
+    Once <code>finorch ingest</code>, ardindan <code>finorch watch</code> calistirin.
+  </div>
+{% else %}
+
+  {# ---------- tetiklenenler ---------- #}
+  {% if buckets.triggered %}
+  <section class="box">
+    <div class="box-head plain">
+      <span class="label">Tetiklendi</span>
+      <span class="count">{{ buckets.triggered|length }}</span>
+      <span class="hint">kosul saglandi, uyari gonderildi</span>
+    </div>
+    <div class="box-body">
+      <ul class="rows">
+        {% for w in buckets.triggered %}{{ watch_row(w) }}{% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---------- takipte olanlar: grafikli ---------- #}
+  <section class="box">
+    <div class="box-head plain">
+      <span class="label">Takipte</span>
+      <span class="count">{{ buckets.watching|length }}</span>
+      <span class="hint">yakinliga gore sirali</span>
+    </div>
+    <div class="box-body">
+      {% if buckets.watching %}
+        {% set seen = [] %}
+        {% for w in buckets.watching %}
+          {# Ayni sembolun grafigi bir kez, o sembolun ilk satirinin ustunde cizilir #}
+          {% if w.symbol and w.symbol in charts and w.symbol not in seen %}
+            {% set _ = seen.append(w.symbol) %}
+            <figure class="chart">
+              <figcaption>
+                <span class="code">{{ w.label }}</span>
+                <span class="hint">6 aylik kapanis &middot; kesikli cizgiler analistin verdigi seviyeler</span>
+              </figcaption>
+              {{ charts[w.symbol] }}
+            </figure>
+          {% endif %}
+          <ul class="rows" style="margin-bottom:5px;">{{ watch_row(w) }}</ul>
+        {% endfor %}
+      {% else %}
+        <div class="empty">Takipte kosul yok.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------- elle dogrulananlar ---------- #}
+  {% if buckets.manual %}
+  <section class="box">
+    <div class="box-head plain">
+      <span class="label">Elle takip</span>
+      <span class="count">{{ buckets.manual|length }}</span>
+      <span class="hint">enstruman bir piyasa sembolune baglanamadi</span>
+    </div>
+    <div class="box-body">
+      <ul class="rows">
+        {% for w in buckets.manual %}{{ watch_row(w, show_price=False) }}{% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---------- kapananlar ---------- #}
+  {% if buckets.closed %}
+  <section class="box">
+    <div class="box-head plain">
+      <span class="label">Kapandi</span>
+      <span class="count">{{ buckets.closed|length }}</span>
+      <span class="hint">suresi dolmus veya gecersizlesmis</span>
+    </div>
+    <div class="box-body">
+      <ul class="rows">
+        {% for w in buckets.closed %}{{ watch_row(w) }}{% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

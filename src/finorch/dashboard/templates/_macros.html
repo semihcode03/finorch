@@ -1,0 +1,48 @@
+{# Dashboard genelinde paylasilan kucuk gorsel parcalar. #}
+
+{# Guven skoru (0..1) #}
+{% macro meter(val) %}
+  {% set pct = ((val or 0) * 100)|round|int %}
+  <span class="meter" title="Guven: {{ pct }}%">
+    <span class="track"><span class="fill" style="width:{{ pct }}%"></span></span>
+    <span class="val">{{ pct }}</span>
+  </span>
+{% endmacro %}
+
+{# Progress Score: kosulun gerceklesmeye ne kadar yakin oldugu.
+   Faz 2'de piyasa verisi + LLM ile doldurulacak; su an bos durumda gosterilir. #}
+{% macro progress(score, status) %}
+  {% if score is not none %}
+    {% set pct = (score * 100)|round|int %}
+    <span class="progress" title="Kosul durumu: {{ status or 'bilinmiyor' }} ({{ pct }}%)">
+      <span class="track"><span class="fill" style="width:{{ pct }}%"></span></span>
+      <span class="val">{{ pct }}%</span>
+    </span>
+  {% else %}
+    <span class="progress is-empty" title="Progress Score - Faz 2'de piyasa verisiyle hesaplanacak">
+      <span class="track"></span>
+      <span class="val">&mdash;</span>
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{# Videonun ilgili saniyesine giden mm:ss linki #}
+{% macro tslink(url, label) %}
+  {% if url %}
+    <a class="ts" href="{{ url }}" target="_blank" rel="noopener">&#9654; {{ label }}</a>
+  {% elif label %}
+    <span class="ts-flat">{{ label }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# Hisse/enstruman kodlari #}
+{% macro codes(items) %}
+  {%- for t in items %}<span class="code">{{ t }}</span>{% endfor -%}
+{% endmacro %}
+
+{# Bir kuralin/projeksiyonun etkiledigi alan: endeks kodu + sektor + hisseler #}
+{% macro targets(asset, sector, tickers) %}
+  {%- if asset %}<span class="code">{{ asset }}</span>{% endif -%}
+  {%- if sector %}<span class="chip chip-sector">{{ sector }}</span>{% endif -%}
+  {{- codes(tickers) -}}
+{% endmacro %}

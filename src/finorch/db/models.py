@@ -1,4 +1,4 @@
-"""SQLAlchemy modelleri.
+﻿"""SQLAlchemy modelleri.
 
 Faz 1 semasi:
   analysts     -> takip edilen analistler
@@ -23,7 +23,12 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+# `text` olarak import EDILMEZ: RawContent ve TranscriptSegment'te `text` adinda
+# bir kolon var ve sinif govdesinde fonksiyonu golgeleyip
+# "MappedColumn object is not callable" hatasi veriyor.
 
 
 class Base(DeclarativeBase):
@@ -93,6 +98,21 @@ class RawContent(Base):
     has_media: Mapped[bool] = mapped_column(Boolean, default=False)
     vision_processed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # --- X (Twitter) ozel alanlari; diger kaynaklarda bos kalir ---
+    # original = analistin kendi gonderisi, repost = baskasindan alinti/retweet,
+    # quote = alintilayip yorum katmis, reply = birine cevap
+    post_kind: Mapped[str] = mapped_column(String(20), default="", server_default=sa_text("''"))
+    # Gonderiyi gercekte yazan hesap (repost'ta orijinal yazar)
+    author_handle: Mapped[str] = mapped_column(String(100), default="", server_default=sa_text("''"))
+    # Alintilanan gonderinin metni (quote/repost'ta analiz baglami icin gerekir)
+    quoted_text: Mapped[str] = mapped_column(Text, default="", server_default=sa_text("''"))
+    # Ayni thread'deki gonderiler ayni conversation_id'yi paylasir
+    conversation_id: Mapped[str] = mapped_column(String(100), default="", server_default=sa_text("''"))
+    like_count: Mapped[int] = mapped_column(Integer, default=0, server_default=sa_text("0"))
+    repost_count: Mapped[int] = mapped_column(Integer, default=0, server_default=sa_text("0"))
+    reply_count: Mapped[int] = mapped_column(Integer, default=0, server_default=sa_text("0"))
+    view_count: Mapped[int] = mapped_column(Integer, default=0, server_default=sa_text("0"))
+
     media: Mapped[list["ContentMedia"]] = relationship(
         back_populates="content", cascade="all, delete-orphan"
     )
@@ -114,6 +134,13 @@ class ContentMedia(Base):
     timestamp_sec: Mapped[float | None] = mapped_column(Float, nullable=True)  # videoda saniye
     vision_text: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Gorsel gercekten bir finansal grafik mi, yoksa selfie/mem/ekran goruntusu mu?
+    # Vision cikti okunurken belirlenir; sadece grafikler analiz metnine dahil edilir.
+    is_chart: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_text("false"))
+    # Grafikte okunan enstruman ve zaman dilimi (varsa)
+    chart_symbol: Mapped[str] = mapped_column(String(60), default="", server_default=sa_text("''"))
+    chart_timeframe: Mapped[str] = mapped_column(String(30), default="", server_default=sa_text("''"))
 
     content: Mapped["RawContent"] = relationship(back_populates="media")
 
@@ -173,11 +200,28 @@ class MacroRule(Base):
     condition: Mapped[str] = mapped_column(Text)  # tetikleyici olay/kosul
     effect_asset: Mapped[str] = mapped_column(String(100), index=True)
     effect_direction: Mapped[str] = mapped_column(String(20))  # up | down | neutral
+    # Etkilenen alan ve somut enstrumanlar: "Bankacilik" / "GARAN, AKBNK"
+    effect_sector: Mapped[str] = mapped_column(String(150), default="", server_default=sa_text("''"))
+    effect_tickers: Mapped[str] = mapped_column(
+        String(300), default="", server_default=sa_text("''")
+    )  # virgulle ayrilmis
+    # key  = kalici/yapisal mekanizma ("faiz duserse bankacilik yukselir")
+    # live = guncel, tarihli gorus ("bu ceyrek faiz inecek")
+    # bos  = eski kayit; dashboard yayin tarihine gore geriye donuk siniflar
+    rule_class: Mapped[str] = mapped_column(String(10), default="", server_default=sa_text("''"))
     rationale: Mapped[str] = mapped_column(Text, default="")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     source_timestamp_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
     quote: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # --- Faz 2 (Progress Score) icin ayrilmis; henuz doldurulmuyor ---
+    progress_score: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..1
+    # pending | forming | met | invalid
+    progress_status: Mapped[str] = mapped_column(String(20), default="", server_default=sa_text("''"))
+    progress_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Projection(Base):
@@ -192,14 +236,28 @@ class Projection(Base):
     )
     asset: Mapped[str] = mapped_column(String(100), index=True)
     horizon: Mapped[str] = mapped_column(String(50), default="")  # 1 hafta / 3 ay / 2026 sonu
-    scenario: Mapped[str] = mapped_column(Text)  # senaryonun ozeti
+    # scenario = "SU OLUR" tarafi (sonuc), conditions = "BU OLURSA" tarafi (tetikleyici).
+    # Ikisi birlikte tek satirlik kesin bir kosul cumlesi olusturur.
+    scenario: Mapped[str] = mapped_column(Text)
     direction: Mapped[str] = mapped_column(String(20), default="")  # up | down | neutral
     price_target: Mapped[float | None] = mapped_column(Float, nullable=True)
-    conditions: Mapped[str] = mapped_column(Text, default="")  # varsa on kosullar
+    conditions: Mapped[str] = mapped_column(Text, default="")
+    # Etkilenen alan ve somut enstrumanlar
+    sector: Mapped[str] = mapped_column(String(150), default="", server_default=sa_text("''"))
+    tickers: Mapped[str] = mapped_column(
+        String(300), default="", server_default=sa_text("''")
+    )  # virgulle ayrilmis
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     source_timestamp_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
     quote: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # --- Faz 2 (Progress Score) icin ayrilmis; henuz doldurulmuyor ---
+    progress_score: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..1
+    progress_status: Mapped[str] = mapped_column(String(20), default="", server_default=sa_text("''"))
+    progress_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TradeSetup(Base):
@@ -226,6 +284,152 @@ class TradeSetup(Base):
     quote: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="new")  # new | triggered | invalid
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PriceWatch(Base):
+    """Fiyata bagli, izlenebilir bir kosul: "X seviyesi asilirsa islem acacagim".
+
+    TradeSetup'tan farki: TradeSetup analistin ZATEN acmis oldugu/tarif ettigi kurulumu
+    kaydeder. PriceWatch ise HENUZ gerceklesmemis, canli fiyatla surekli kontrol edilen
+    bir tetikleyicidir. Fiyat kosulu sagladiginda status "triggered" olur ve uyari uretilir.
+
+    Fiyat hedefleri de (analistin "hedefim 120 TL" demesi) trigger_type="target" ile
+    buraya yazilir; boylece hedefe yaklasma da ayni cubukla izlenir.
+    """
+
+    __tablename__ = "price_watches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content_id: Mapped[int] = mapped_column(ForeignKey("raw_content.id", ondelete="CASCADE"))
+    analyst_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysts.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Analistin soyledigi ham ad ("gram altin", "THYAO", "bitcoin")
+    instrument: Mapped[str] = mapped_column(String(100), index=True)
+    # Piyasa saglayicisinda gecerli sembol ("THYAO.IS", "BTC-USD"); cozumlenemezse bos
+    symbol: Mapped[str] = mapped_column(String(40), default="", server_default=sa_text("''"))
+    direction: Mapped[str] = mapped_column(String(10), default="")  # long | short | neutral
+
+    # break_above  = seviyenin uzerine cikis      break_below = altina inis
+    # reclaim      = kaybedilen seviyeyi geri alma  retest    = seviyeye geri donus
+    # range        = iki fiyat arasinda bant        target    = fiyat hedefi
+    # structure    = saf formasyon kosulu (fiyatsiz; elle/gorsel dogrulama gerekir)
+    trigger_type: Mapped[str] = mapped_column(String(20), default="")
+    trigger_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trigger_price_2: Mapped[float | None] = mapped_column(Float, nullable=True)  # bant ust ucu
+    timeframe: Mapped[str] = mapped_column(String(30), default="")
+    # Fiyat disi kosul: "FVG doldurulur", "haftalik kapanis ustunde", "MSB olusur"
+    structure: Mapped[str] = mapped_column(Text, default="")
+    # Analistin kosul saglanirsa yapacagini soyledigi sey: "kademeli alim yapacagim"
+    action: Mapped[str] = mapped_column(Text, default="")
+
+    entry: Mapped[float | None] = mapped_column(Float, nullable=True)
+    stop_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    take_profit: Mapped[str] = mapped_column(String(200), default="")
+    rr: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    quote: Mapped[str] = mapped_column(Text, default="")
+    source_timestamp_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # watching = canli takipte, triggered = kosul saglandi, invalid = gecersizlesti,
+    # expired  = suresi doldu, unresolved = sembol cozumlenemedi (takip edilemiyor)
+    status: Mapped[str] = mapped_column(String(20), default="watching", server_default=sa_text("'watching'"))
+    last_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Tetik fiyatina yuzde uzaklik; negatif = fiyat tetigin uzerinde
+    distance_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    progress_score: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..1
+    last_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AnalystProfile(Base):
+    """Bir hesabin "nasil dusundugu": metodoloji, enstrumanlar, sinyal uslubu.
+
+    Analistin son N icerigi toplu okunarak LLM ile uretilir ve icerik geldikce
+    yenilenir. Amac: tek tek cikarimlarin otesinde hesabin mantigini modellemek.
+    """
+
+    __tablename__ = "analyst_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analyst_id: Mapped[int] = mapped_column(
+        ForeignKey("analysts.id", ondelete="CASCADE"), unique=True
+    )
+
+    summary: Mapped[str] = mapped_column(Text, default="")  # hesabin genel mantigi
+    methodology: Mapped[str] = mapped_column(Text, default="")  # SMC/ICT, Elliott, temel...
+    instruments: Mapped[str] = mapped_column(String(400), default="")  # sik isledigi enstrumanlar
+    timeframes: Mapped[str] = mapped_column(String(200), default="")
+    typical_setups: Mapped[str] = mapped_column(Text, default="")
+    risk_style: Mapped[str] = mapped_column(Text, default="")
+    # "hedefli" = net fiyat hedefi verir, "kosullu" = "su olursa girerim" der,
+    # "yorumcu" = yon belirtir ama seviye vermez
+    signal_style: Mapped[str] = mapped_column(String(40), default="")
+    strengths: Mapped[str] = mapped_column(Text, default="")
+    cautions: Mapped[str] = mapped_column(Text, default="")  # dikkat edilmesi gerekenler
+    sample_size: Mapped[int] = mapped_column(Integer, default=0)  # kac icerikten uretildi
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class MarketSnapshot(Base):
+    """Piyasa verisi onbellegi: sembol basina gunluk/anlik OHLC kaydi.
+
+    Ayni sembolu her kosul kontrolunde tekrar tekrar cekmemek ve dashboard'da
+    grafik cizebilmek icin saklanir.
+    """
+
+    __tablename__ = "market_snapshots"
+    __table_args__ = (UniqueConstraint("symbol", "ts", name="uq_snapshot_symbol_ts"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(40), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    open: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    close: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarketQuote(Base):
+    """Dashboard ustundeki kayan piyasa seridi icin hazir kotasyon.
+
+    Serit her sayfa yuklenisinde gorunur; oradaki bir web istegi asla yfinance'i
+    beklememeli. Bu yuzden veriler arka planda (`finorch ticker` / scheduler)
+    toplanip burada hazir tutulur, dashboard yalnizca okur.
+
+    `spark` alani mini grafik icin virgulle ayrilmis kapanis serisidir. Normalde
+    boyle bir seri `market_snapshots`'tan sorgulanirdi; ancak serit her sembol icin
+    tek satirda ve tek sorguda cizilmeli, bu yuzden burada denormalize saklanir.
+    """
+
+    __tablename__ = "market_quotes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(60), default="")  # "BIST 100", "USD/TRY"
+    # Seritteki sira; yapilandirmadaki siralamayi korur
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    spark: Mapped[str] = mapped_column(Text, default="", server_default=sa_text("''"))
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Alert(Base):

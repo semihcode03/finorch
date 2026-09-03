@@ -8,255 +8,500 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0f1117;
-      --surface:  #1a1d27;
-      --surface2: #22263a;
-      --border:   #2e3350;
-      --accent:   #4f8ef7;
-      --green:    #34d399;
-      --red:      #f87171;
-      --yellow:   #fbbf24;
-      --text:     #e2e8f0;
-      --muted:    #8892a4;
-      --radius:   8px;
-      --shadow:   0 2px 8px rgba(0,0,0,.4);
+      --bg:        #f4f5f7;
+      --surface:   #ffffff;
+      --surface-2: #fafbfc;
+      --surface-3: #f1f3f6;
+      --border:    #e4e7ec;
+      --border-2:  #d3d8e0;
+      --text:      #0f1729;
+      --text-2:    #475467;
+      --muted:     #8a94a6;
+      --accent:    #1f5fd0;
+      --accent-bg: #eef3fd;
+      --up:        #05713f;
+      --up-bg:     #e9f9f0;
+      --up-br:     #a9e0c2;
+      --down:      #a8261a;
+      --down-bg:   #fdeeec;
+      --down-br:   #f0b7b0;
+      --flat:      #8a5406;
+      --flat-bg:   #fdf5e6;
+      --flat-br:   #ecd4a0;
+      --r:         10px;
+      --r-sm:      6px;
+      --mono:      ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     }
+
+    html { -webkit-text-size-adjust: 100%; }
 
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.55;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* ---- navigasyon ---- */
+    a { color: inherit; }
+
+    /* ================= navigasyon ================= */
     nav {
-      background: var(--surface);
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(8px);
       border-bottom: 1px solid var(--border);
-      padding: 0 24px;
+      padding: 0 28px;
       display: flex;
       align-items: center;
-      height: 52px;
-      gap: 24px;
+      height: 56px;
+      gap: 22px;
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 50;
     }
     nav .brand {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--accent);
-      text-decoration: none;
-      letter-spacing: .3px;
-    }
-    nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
-    nav a:hover { color: var(--text); }
-
-    /* ---- sayfa icerigi ---- */
-    .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
-
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-    h2 { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
-    h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-
-    /* ---- kart ---- */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 24px;
-      box-shadow: var(--shadow);
-    }
-    .card + .card { margin-top: 16px; }
-
-    /* ---- etiket rozeti ---- */
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .3px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--muted);
-    }
-    .badge-up    { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
-    .badge-down  { background: rgba(248,113,113,.12); border-color: var(--red);   color: var(--red);   }
-    .badge-neutral { background: rgba(251,191,36,.12); border-color: var(--yellow); color: var(--yellow); }
-    .badge-long  { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
-    .badge-short { background: rgba(248,113,113,.12); border-color: var(--red);   color: var(--red);   }
-
-    /* ---- guven cubugu ---- */
-    .confidence-bar {
       display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .confidence-bar .bar {
-      width: 60px;
-      height: 5px;
-      background: var(--border);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .confidence-bar .fill {
-      height: 100%;
-      background: var(--accent);
-      border-radius: 3px;
-    }
-
-    /* ---- zaman damgasi linki ---- */
-    .ts-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--accent);
-      text-decoration: none;
-      background: rgba(79,142,247,.1);
-      border: 1px solid rgba(79,142,247,.25);
-      border-radius: 4px;
-      padding: 1px 6px;
-    }
-    .ts-link:hover { background: rgba(79,142,247,.2); }
-    .ts-text {
-      font-size: 11px;
-      color: var(--muted);
-      background: var(--surface2);
-      border-radius: 4px;
-      padding: 1px 6px;
-    }
-
-    /* ---- alinti ---- */
-    .quote {
-      font-style: italic;
-      color: var(--muted);
-      font-size: 12px;
-      border-left: 3px solid var(--border);
-      padding-left: 10px;
-      margin-top: 6px;
-    }
-
-    /* ---- cikarim satirlari ---- */
-    .inference-list { list-style: none; }
-    .inference-list li {
-      padding: 10px 12px;
-      border-radius: 6px;
-      background: var(--surface2);
-      margin-bottom: 6px;
-    }
-    .inference-list li .header {
-      display: flex;
       align-items: center;
       gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 4px;
+      font-size: 14.5px;
+      font-weight: 650;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -.01em;
     }
-    .inference-list li .body { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    nav .brand .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+    }
+    nav .links { display: flex; gap: 18px; margin-left: 6px; }
+    nav .links a {
+      color: var(--text-2); text-decoration: none; font-size: 13px; font-weight: 500;
+    }
+    nav .links a:hover { color: var(--text); }
 
-    /* ---- sayac rozeti ---- */
-    .stat-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
+    /* ================= sayfa ================= */
+    .page { max-width: 1180px; margin: 0 auto; padding: 34px 24px 80px; }
+
+    .page-head { margin-bottom: 26px; }
+    .page-head h1 {
+      font-size: 24px; font-weight: 680; letter-spacing: -.02em; margin-bottom: 3px;
+    }
+    .page-head p { color: var(--text-2); font-size: 13.5px; }
+
+    h1 { font-size: 23px; font-weight: 680; letter-spacing: -.02em; }
+    h2 { font-size: 16px; font-weight: 640; letter-spacing: -.01em; }
+
+    /* mikro bolum etiketi */
+    .label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .09em;
       color: var(--muted);
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2px 10px;
     }
-    .stat-pill span { font-weight: 600; color: var(--text); }
 
-    /* ---- video baslik satiri ---- */
-    .video-header {
+    /* ================= box / kart ================= */
+    .box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: 0 1px 2px rgba(16,24,40,.04);
+      overflow: hidden;
+    }
+    .box + .box { margin-top: 18px; }
+
+    .box-head {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
-      margin-bottom: 14px;
+      padding: 18px 22px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
     }
-    .video-header .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
-    .video-header h2 { margin-bottom: 2px; }
+    .box-head .title-row {
+      display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 3px;
+    }
+    .box-head h2 a { text-decoration: none; }
+    .box-head h2 a:hover { color: var(--accent); }
+    .box-head .sub { color: var(--text-2); font-size: 12.5px; max-width: 620px; }
 
-    /* ---- bolum basligi ---- */
-    .section-header {
+    .box-body { padding: 6px 22px 18px; }
+
+    /* ================= grup (onemli / anlik) ================= */
+    .group { padding-top: 16px; }
+    .group + .group { border-top: 1px solid var(--border); margin-top: 14px; }
+    .group-head {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .count {
+      font-size: 11px; font-weight: 650; color: var(--text-2);
+      background: var(--surface-3); border: 1px solid var(--border);
+      border-radius: 20px; padding: 0 7px; line-height: 17px;
+    }
+    .group-head .hint { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+    /* yalnizca etiket + sayac tasiyan box basligi */
+    .box-head.plain { justify-content: flex-start; align-items: center; gap: 8px; }
+
+    /* ================= kosul satiri (keskin veri) ================= */
+    .rows { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin: 16px 0 8px;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      transition: border-color .12s, background .12s;
     }
-    .section-header h3 { margin: 0; }
+    .row:hover { border-color: var(--border-2); background: var(--surface-2); }
+    .row.is-live { border-left: 3px solid var(--accent); }
 
-    /* ---- tablo ---- */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(255,255,255,.02); }
+    /* "EGER x -> y" ifadesi */
+    .stmt { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; flex: 1 1 460px; }
+    .stmt .if-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      color: var(--muted); background: var(--surface-3);
+      border-radius: 3px; padding: 1px 5px; flex-shrink: 0;
+    }
+    .stmt .cond { font-size: 13.5px; font-weight: 500; color: var(--text); }
+    .stmt .arrow { color: var(--border-2); font-size: 15px; line-height: 1; flex-shrink: 0; }
+    .stmt .then { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-    /* ---- link buton ---- */
+    .row .tail {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto;
+    }
+
+    /* ================= rozetler ================= */
+    .code {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 620;
+      letter-spacing: -.01em;
+      color: var(--text);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .chip {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 1px 7px;
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+    .chip-sector { background: var(--accent-bg); border-color: #cfdefb; color: var(--accent); }
+    .chip-up      { background: var(--up-bg);   border-color: var(--up-br);   color: var(--up); }
+    .chip-down    { background: var(--down-bg); border-color: var(--down-br); color: var(--down); }
+    .chip-neutral { background: var(--flat-bg); border-color: var(--flat-br); color: var(--flat); }
+    .chip-long    { background: var(--up-bg);   border-color: var(--up-br);   color: var(--up); }
+    .chip-short   { background: var(--down-bg); border-color: var(--down-br); color: var(--down); }
+    .chip-target  { background: var(--accent-bg); border-color: #cfdefb; color: var(--accent); font-family: var(--mono); }
+
+    .profile-badge {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .05em;
+      text-transform: uppercase; border-radius: 20px; padding: 2px 9px;
+      border: 1px solid transparent;
+    }
+    .profile-macro     { background: var(--accent-bg); color: var(--accent); border-color: #cfdefb; }
+    .profile-technical { background: var(--up-bg);     color: var(--up);     border-color: var(--up-br); }
+    .profile-mixed     { background: var(--flat-bg);   color: var(--flat);   border-color: var(--flat-br); }
+
+    /* ================= olcuim cubuklari ================= */
+    .meter { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .meter .track {
+      width: 46px; height: 4px; border-radius: 2px;
+      background: var(--surface-3); border: 1px solid var(--border); overflow: hidden;
+    }
+    .meter .fill { height: 100%; background: var(--accent); }
+    .meter .val {
+      font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-2);
+      min-width: 26px; text-align: right;
+    }
+
+    /* Faz 2: kosul takibi (Progress Score) yeri */
+    .progress { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .progress .track {
+      width: 58px; height: 5px; border-radius: 3px;
+      background: var(--surface-3); border: 1px solid var(--border); overflow: hidden;
+    }
+    .progress .fill { height: 100%; background: var(--up); }
+    .progress .val { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--up); }
+    .progress.is-empty .track { background: repeating-linear-gradient(
+        135deg, var(--surface-3) 0 4px, #e8ebf0 4px 8px); }
+    .progress.is-empty .val { color: var(--muted); }
+
+    /* ================= fiyat izlemeleri ================= */
+    /* tetiklenmis kosul: sol kenarda yesil serit */
+    .row.is-hit { border-left: 3px solid var(--up); background: var(--up-bg); }
+
+    /* canli fiyat + tetige uzaklik */
+    .live {
+      display: inline-flex; align-items: baseline; gap: 5px;
+      font-family: var(--mono); font-size: 12px; font-weight: 620;
+      color: var(--text); flex-shrink: 0;
+    }
+    .live .dist { font-size: 10.5px; font-weight: 600; }
+    /* tetik hala fiyatin uzerinde = yukari gitmesi gerekiyor */
+    .live .dist-up   { color: var(--up); }
+    .live .dist-down { color: var(--down); }
+
+    /* sunucu tarafinda uretilen SVG fiyat grafigi */
+    .chart {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 10px 12px 4px; margin: 14px 0 8px;
+    }
+    .chart figcaption {
+      display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 6px;
+    }
+    .chart figcaption .hint { font-size: 11px; color: var(--muted); }
+    .chart .spark { display: block; overflow: visible; }
+
+    /* ================= analist yontem profili ================= */
+    .profile-card {
+      background: var(--accent-bg); border: 1px solid #cfdefb;
+      border-radius: var(--r); padding: 16px 20px; margin-bottom: 18px;
+    }
+    .profile-card .summary {
+      font-size: 14px; color: var(--text); margin: 6px 0 12px; max-width: 780px;
+    }
+    .profile-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 20px;
+    }
+    .profile-grid dt {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .09em; color: var(--accent); margin-bottom: 2px;
+    }
+    .profile-grid dd { font-size: 12.5px; color: var(--text-2); }
+    .profile-card .stamp { font-size: 11px; color: var(--muted); margin-top: 12px; }
+
+    /* ================= zaman damgasi ================= */
+    .ts {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      color: var(--accent); text-decoration: none;
+      background: var(--accent-bg); border: 1px solid #dbe6fb;
+      border-radius: 4px; padding: 0 5px; line-height: 18px; flex-shrink: 0;
+    }
+    .ts:hover { background: #e2ebfd; }
+    .ts-flat {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      background: var(--surface-3); border-radius: 4px; padding: 0 5px; line-height: 18px;
+    }
+
+    /* ================= alinti / gerekce ================= */
+    .why { font-size: 12.5px; color: var(--text-2); flex-basis: 100%; padding-left: 2px; }
+    .quote {
+      font-size: 12px; color: var(--text-2); font-style: italic;
+      border-left: 2px solid var(--border-2); padding-left: 9px; margin-top: 5px;
+    }
+
+    /* ================= sayaclar ================= */
+    .stats { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    .stat {
+      display: inline-flex; align-items: baseline; gap: 5px;
+      font-size: 11.5px; color: var(--text-2);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 10px;
+    }
+    .stat b { font-size: 12.5px; font-weight: 660; color: var(--text); font-family: var(--mono); }
+
+    /* ================= buton ================= */
     .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: var(--r-sm);
+      font-size: 12.5px; font-weight: 560; text-decoration: none;
+      color: var(--text); background: var(--surface);
+      border: 1px solid var(--border-2);
+      box-shadow: 0 1px 1px rgba(16,24,40,.03);
+      transition: background .12s, border-color .12s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface-3); }
+    .btn-primary {
+      color: #fff; background: var(--accent); border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #1a54b9; }
+
+    .back {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: var(--text-2); font-size: 12.5px; font-weight: 500;
+      text-decoration: none; margin-bottom: 14px;
+    }
+    .back:hover { color: var(--accent); }
+
+    /* ================= bos durum ================= */
+    .empty {
+      color: var(--muted); font-size: 12.5px;
+      background: var(--surface-2); border: 1px dashed var(--border-2);
+      border-radius: var(--r-sm); padding: 12px 14px; text-align: center;
+    }
+
+    /* ================= transkript ================= */
+    .scroll { max-height: 560px; overflow-y: auto; padding-right: 6px; }
+    .scroll::-webkit-scrollbar { width: 8px; }
+    .scroll::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+    .tline {
+      display: flex; gap: 12px; padding: 5px 0;
+      border-bottom: 1px solid var(--surface-3); font-size: 13px;
+    }
+    .tline:last-child { border-bottom: none; }
+    .tline .txt { color: var(--text-2); flex: 1; }
+
+    /* ================= icerik basligi ================= */
+    .content-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    .content-head .meta {
+      display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+      color: var(--text-2); font-size: 12.5px; margin-top: 5px;
+    }
+
+    .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: start; }
+
+    .media-card {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 10px; max-width: 290px;
+    }
+
+    /* ================= kayan piyasa seridi ================= */
+    .ticker {
+      position: sticky;
+      top: 56px;              /* nav'in hemen altina yapisir */
+      z-index: 40;            /* nav (50) ustte kalsin */
+      height: 38px;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    /* Kayma animasyonu track uzerindedir: fiyatlar tazelenirken yalnizca
+       icindeki gruplar degistirilir, boylece kayma sicramaz. */
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      animation: ticker-scroll var(--ticker-duration, 90s) linear infinite;
+    }
+    .ticker:hover .ticker-track { animation-play-state: paused; }
+    /* Liste iki kez basilir; -%50'de ikinci kopya birincinin yerine oturur */
+    @keyframes ticker-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .ticker-group { display: flex; }
+
+    .tk {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 12px;
-      border-radius: 5px;
-      font-size: 12px;
-      font-weight: 500;
-      text-decoration: none;
-      color: var(--accent);
-      border: 1px solid rgba(79,142,247,.4);
-      background: rgba(79,142,247,.08);
-      transition: background .15s;
+      gap: 8px;
+      padding: 0 17px;
+      white-space: nowrap;
+      border-right: 1px solid var(--surface-3);
     }
-    .btn:hover { background: rgba(79,142,247,.18); }
-
-    /* ---- bos durum ---- */
-    .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-
-    /* ---- transkript ---- */
-    .transcript-line {
-      display: flex;
-      gap: 12px;
-      padding: 4px 0;
-      border-bottom: 1px solid rgba(255,255,255,.03);
-      font-size: 13px;
+    .tk-name  { font-size: 12px; font-weight: 650; color: var(--text-2); }
+    .tk-price { font-family: var(--mono); font-size: 12.5px; font-weight: 630; color: var(--text); }
+    .tk .mini { flex-shrink: 0; opacity: .85; }
+    .tk-chg {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 11.5px; font-weight: 620;
     }
-    .transcript-line:last-child { border-bottom: none; }
-    .transcript-line .seg-text { color: var(--text); flex: 1; }
-
-    /* ---- profile turu ---- */
-    .profile-badge {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-weight: 600;
+    .tk-pct { opacity: .85; }
+    .tk-up   .tk-chg { color: var(--up); }
+    .tk-down .tk-chg { color: var(--down); }
+    /* Ucgen glif monospace yiginda cogu zaman yok; sans-serif'e zorlanir */
+    .tk-chg::before {
+      font-family: "Segoe UI Symbol", system-ui, sans-serif;
+      font-size: 9px; line-height: 1;
     }
-    .profile-macro    { background: rgba(79,142,247,.15); color: var(--accent); }
-    .profile-technical { background: rgba(52,211,153,.15); color: var(--green); }
-    .profile-mixed    { background: rgba(251,191,36,.15); color: var(--yellow); }
+    .tk-up   .tk-chg::before { content: "\25B2"; }
+    .tk-down .tk-chg::before { content: "\25BC"; }
+    .tk-flat .tk-chg { color: var(--muted); }
 
-    /* ---- duyarli tasarim ---- */
+    .ticker-empty {
+      padding: 0 20px; font-size: 12px; color: var(--muted);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ticker-track { animation: none; }
+      .ticker { overflow-x: auto; }
+      /* Animasyon yokken ikinci kopya yalnizca tekrar olurdu */
+      .ticker-group[aria-hidden="true"] { display: none; }
+    }
+
+    /* ================= duyarli ================= */
+    @media (max-width: 900px) {
+      .split { grid-template-columns: 1fr; }
+    }
     @media (max-width: 640px) {
-      .page { padding: 20px 12px 48px; }
-      .video-header { flex-direction: column; }
+      nav { padding: 0 16px; gap: 14px; }
+      .page { padding: 22px 14px 56px; }
+      .box-head, .box-body { padding-left: 15px; padding-right: 15px; }
+      .row .tail { margin-left: 0; }
+      .tk { padding: 0 12px; gap: 6px; }
+      .tk .mini { display: none; }
     }
   </style>
 </head>
 <body>
   <nav>
-    <a class="brand" href="/">&#9670; Financial Orchestrator</a>
-    <a href="/">Analistler</a>
+    <a class="brand" href="/"><span class="dot"></span> Financial Orchestrator</a>
+    <span class="links">
+      <a href="/">Analistler</a>
+      <a href="/watches">Fiyat izlemeleri</a>
+    </span>
   </nav>
+
+  {% set quotes = ticker_quotes() %}
+  {# Serit ayar acikken hep cizilir: veri henuz toplanmadiysa yer tutucu kalir,
+     periyodik tazeleme veriyi getirdiginde kendiliginden dolar. #}
+  {% if quotes is not none %}
+  <div class="ticker" style="--ticker-duration: {{ [quotes|length * 5, 45]|max }}s">
+    <div class="ticker-track" id="ticker-track">
+      {% if quotes %}
+        {% include "_ticker.html" %}
+      {% else %}
+        <span class="ticker-empty">Piyasa verisi bekleniyor — <code>finorch ticker</code></span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <main class="page">
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    // Serit fiyatlarini periyodik tazeler. Animasyon .ticker-track uzerinde
+    // oldugundan yalnizca icerigi degistirmek kaymayi kesintiye ugratmaz.
+    (function () {
+      var track = document.getElementById("ticker-track");
+      if (!track) return;
+      var period = {{ ticker_poll_seconds }} * 1000;
+
+      function refresh() {
+        if (document.hidden) return;   // arka plan sekmesinde bosuna istek atma
+        fetch("/partials/ticker", { headers: { Accept: "text/html" } })
+          .then(function (r) { return r.ok ? r.text() : null; })
+          .then(function (html) { if (html) track.innerHTML = html; })
+          .catch(function () { /* gecici ag hatasi: bir sonraki turda yeniden dener */ });
+      }
+
+      setInterval(refresh, period);
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) refresh();  // sekmeye donunce bayat fiyat gosterme
+      });
+    })();
+  </script>
 </body>
 </html>

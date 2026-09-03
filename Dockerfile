@@ -15,9 +15,22 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Once bagimliliklar (katman onbellegi icin)
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 COPY src ./src
 RUN pip install --upgrade pip && pip install -e .
+
+# Kurumsal SSL denetimi: bazi aglar (or. Trend Micro Web Security) TLS trafigini
+# kendi kok CA'si ile yeniden imzalar. certs/*.crt hem OS deposuna hem certifi
+# paketine eklenir; httpx/openai/yt-dlp certifi kullandigi icin ikisi de gerekli.
+# certs/ dizini yoksa adim atlanir (.dockerignore her zaman eslesmeyi garantiler).
+COPY .dockerignore certs*/* /tmp/corp-certs/
+RUN set -eu; \
+    if ls /tmp/corp-certs/*.crt >/dev/null 2>&1; then \
+        cp /tmp/corp-certs/*.crt /usr/local/share/ca-certificates/; \
+        update-ca-certificates; \
+        cat /tmp/corp-certs/*.crt >> "$(python -c 'import certifi; print(certifi.where())')"; \
+    fi; \
+    rm -rf /tmp/corp-certs
 
 # Kalan proje dosyalari
 COPY config ./config
