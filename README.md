@@ -14,6 +14,7 @@ yonetir. Dashboard, FastAPI ve Jinja2 ile sunucu tarafinda olusturulur.
 - OpenAI ile makro, teknik ve karma analiz
 - Teknik kosullar icin fiyat izleme ve ilerleme skoru
 - yfinance ile canli fiyat, gecmis mum ve kayan piyasa seridi
+- Lightweight Charts ile 15/30/60 dakikalik etkilesimli grafikler ve Python indikatorleri
 - PostgreSQL + pgvector veri saklama
 - Salt okunur web dashboard'u
 - Telegram uyarilari
@@ -59,6 +60,7 @@ docker compose up -d dashboard
 ```
 
 Dashboard: http://localhost:8000
+Etkilesimli grafikler: http://localhost:8000/charts
 
 Surekli scheduler'i de baslatmak icin:
 
@@ -122,6 +124,7 @@ komutunu calistirip sonucu `.env` icindeki `TELEGRAM_CHAT_ID` alanina yazin.
 
 - `/` analistleri ve cikarimlari gosterir
 - `/watches` aktif fiyat izlemelerini ve grafikleri gosterir
+- `/charts` intraday mum, hacim, SMA 20, EMA 50, RSI 14 ve fiyat seviyelerini gosterir
 - `/analyst/{id}` analist profili ve gecmisini gosterir
 - `/content/{id}` transkript, cikarim ve gorsel analizini gosterir
 
@@ -134,6 +137,17 @@ python -m compileall -q src
 ruff check src
 pytest
 ```
+
+Dashboard grafik kutuphanesini guncellemek icin Node.js ile:
+
+```powershell
+npm install
+npm run vendor:charts
+```
+
+Grafik JavaScript'i CDN'den cekilmez; `src/finorch/dashboard/static/vendor` altindan
+lokal servis edilir. Ucretsiz test saglayicisinda 15/30 dakika yaklasik 60 gun,
+60 dakika yaklasik 2 yil gecmis sunar. Bu sinir saglayiciya gore degisebilir.
 
 Detayli teknik notlar ve sonraki adimlar `prior_docs/README.md` ve
 `prior_docs/YAPILACAKLAR.md` dosyalarindadir.

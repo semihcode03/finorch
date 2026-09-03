@@ -1,0 +1,10 @@
+{
+  "name": "finorch-dashboard-assets",
+  "private": true,
+  "scripts": {
+    "vendor:charts": "node scripts/vendor-charts.mjs"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.2.1"
+  }
+}
